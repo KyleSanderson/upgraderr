@@ -49,15 +49,15 @@ type upgradereq struct {
 type timeentry struct {
 	e map[string][]Entry
 	t time.Time
-	s deadlock.RWMutex
+	err error
 }
 
 type clientmap struct {
-	c map[string]*timeentry
-	s deadlock.RWMutex
+	c map[string]chan func(timeentry)
+	deadlock.RWMutex
 }
 
-var gm = clientmap{c: make(map[string]*timeentry)}
+var gm = clientmap{c: make(map[string] chan func(timeentry))}
 
 func main() {
 	r := chi.NewRouter()
@@ -70,8 +70,8 @@ func main() {
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		gm.s.RLock()
-		gm.s.RUnlock()
+		gm.RLock()
+		gm.RUnlock()
 
 		w.Write([]byte("k8s"))
 	})
@@ -81,87 +81,79 @@ func main() {
 }
 
 func heartbeat(w http.ResponseWriter, r *http.Request) {
-	gm.s.RLock()
-	defer gm.s.RUnlock()
+	gm.RLock()
+	defer gm.RUnlock()
 
 	http.Error(w, "Alive", 200)
 }
 
-func (req *upgradereq) getEntries(w http.ResponseWriter, r *http.Request, client string) *timeentry {
-	gm.s.RLock()
-	mp, ok := gm.c[client]
-	if ok {
-		mp.s.RLock()
-		if mp.t.Unix()+60 > time.Now().Unix() {
-			mp.s.RUnlock()
-			gm.s.RUnlock()
-			return mp
-		}
+func (c *clientmap) getEntries(req upgradereq) chan func(timeentry) {
+	client := req.Host + fmt.Sprintf("%d", req.Port) + req.User + req.Password
 
-		mp.s.RUnlock()
+	c.RLock()
+	if ch, ok := c.c[client]; ok {
+		c.RUnlock()
+		return ch
 	}
+	c.RUnlock()
 
-	gm.s.RUnlock()
-	gm.s.Lock()
+	ch := make(chan func(timeentry), 500)
 
-	mp, ok = gm.c[client]
-	if ok {
-		mp.s.RLock()
-		if mp.t.Unix()+60 > time.Now().Unix() {
-			mp.s.RUnlock()
-			gm.s.Unlock()
-			return mp
-		}
+	c.Lock()
+	c.c[client] = ch
+	c.Unlock()
 
-		mp.s.RUnlock()
-	}
-
-	c := qbittorrent.NewClient(qbittorrent.Settings{
+	go processReleasesLoop(ch, qbittorrent.Settings{
 		Hostname: req.Host,
 		Port:     req.Port,
 		Username: req.User,
 		Password: req.Password,
 	})
 
-	if err := c.Login(); err != nil {
-		gm.s.Unlock()
-
-		http.Error(w, fmt.Sprintf("Unable to login: %q\n", err), 468)
-		if ok {
-			return mp
-		}
-
-		return &timeentry{}
-	}
-
-	torrents, err := c.GetTorrents()
-	if err != nil {
-		gm.s.Unlock()
-
-		http.Error(w, fmt.Sprintf("Unable to get torrents: %q\n", err), 467)
-		if ok {
-			return mp
-		}
-
-		return &timeentry{}
-	}
-
-	mp = &timeentry{e: make(map[string][]Entry), t: time.Now()}
-	mp.s.Lock()
-	defer mp.s.Unlock()
-
-	gm.c[client] = mp
-	gm.s.Unlock()
-
-	mp.e = make(map[string][]Entry)
-	for _, t := range torrents {
-		r := rls.ParseString(t.Name)
-		s := getFormattedTitle(r)
-		mp.e[s] = append(mp.e[s], Entry{t: t, r: r})
-	}
-
-	return mp
+	return ch
 }
+
+func processReleasesLoop(ch chan func(timeentry), s qbittorrent.Settings) {
+	mp := timeentry{e: make(map[string][]Entry), t: time.Time{}}
+
+	for {
+		select {
+			case f := <-ch: {
+				if mp.t.Unix() + 60 > time.Now().Unix() {
+					go f(mp)
+					continue
+				}
+
+				c := qbittorrent.NewClient(s)
+				if err := c.Login(); err != nil {
+					clone := mp
+					clone.err = err
+					go f(clone)
+					continue
+				}
+
+				torrents, err := c.GetTorrents()
+				if err != nil {
+					clone := mp
+					clone.err = err
+					go f(clone)
+					continue
+				}
+
+				mp.t = time.Now()
+
+				for _, t := range torrents {
+					r := rls.ParseString(t.Name)
+					s := getFormattedTitle(r)
+					mp.e[s] = append(mp.e[s], Entry{t: t, r: r})
+				}
+
+				go f(mp)
+			}
+		}
+	}
+}
+
 
 func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 	var req upgradereq
@@ -175,12 +167,16 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ch := make(chan timeentry)
+	gm.getEntries(req) <- func(e timeentry) {
+		ch <- e
+	}
+ 
 	requestrls := Entry{r: rls.ParseString(req.Name)}
-	mp := req.getEntries(w, r, req.Host+fmt.Sprintf("%d", req.Port)+req.User+req.Password)
-	mp.s.RLock()
-	defer mp.s.RUnlock()
+	mp := <- ch
 
-	if mp.t == (time.Time{}) {
+	if mp.err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 468)
 		return
 	}
 
