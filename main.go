@@ -28,6 +28,7 @@ import (
 	"github.com/sasha-s/go-deadlock"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 	"unicode"
 )
@@ -47,8 +48,8 @@ type upgradereq struct {
 }
 
 type timeentry struct {
-	e map[string][]Entry
-	t time.Time
+	e   map[string][]Entry
+	t   time.Time
 	err error
 }
 
@@ -57,7 +58,7 @@ type clientmap struct {
 	deadlock.RWMutex
 }
 
-var gm = clientmap{c: make(map[string] chan func(timeentry))}
+var gm = clientmap{c: make(map[string]chan func(timeentry))}
 
 func main() {
 	r := chi.NewRouter()
@@ -118,8 +119,9 @@ func processReleasesLoop(ch chan func(timeentry), s qbittorrent.Settings) {
 
 	for {
 		select {
-			case f := <-ch: {
-				if mp.t.Unix() + 60 > time.Now().Unix() {
+		case f := <-ch:
+			{
+				if mp.t.Unix()+60 > time.Now().Unix() {
 					go f(mp)
 					continue
 				}
@@ -140,8 +142,7 @@ func processReleasesLoop(ch chan func(timeentry), s qbittorrent.Settings) {
 					continue
 				}
 
-				mp.t = time.Now()
-
+				mp = timeentry{e: make(map[string][]Entry), t: time.Now()}
 				for _, t := range torrents {
 					r := rls.ParseString(t.Name)
 					s := getFormattedTitle(r)
@@ -153,7 +154,6 @@ func processReleasesLoop(ch chan func(timeentry), s qbittorrent.Settings) {
 		}
 	}
 }
-
 
 func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 	var req upgradereq
@@ -171,9 +171,9 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 	gm.getEntries(req) <- func(e timeentry) {
 		ch <- e
 	}
- 
+
 	requestrls := Entry{r: rls.ParseString(req.Name)}
-	mp := <- ch
+	mp := <-ch
 
 	if mp.err != nil {
 		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 468)
@@ -187,7 +187,7 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 			if rls.Compare(requestrls.r, child.r) == 0 {
 				parent = child
 				code = -1
-				continue
+				break
 			}
 
 			if res := checkResolution(&requestrls, &child); res != nil {
@@ -254,13 +254,13 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 }
 
 func getFormattedTitle(r rls.Release) string {
-	s := fmt.Sprintf("%s%s%s%04d%02d%02d%02d%03d", rls.MustNormalize(r.Artist), rls.MustNormalize(r.Title), rls.MustNormalize(r.Subtitle), r.Year, r.Month, r.Day, r.Series, r.Episode)
+	s := fmt.Sprintf("%s%s%s%04d%02d%02d%02d%03d", Normalize(r.Artist), Normalize(r.Title), Normalize(r.Subtitle), r.Year, r.Month, r.Day, r.Series, r.Episode)
 	for _, a := range r.Cut {
-		s += rls.MustNormalize(a)
+		s += Normalize(a)
 	}
 
 	for _, a := range r.Edition {
-		s += rls.MustNormalize(a)
+		s += Normalize(a)
 	}
 
 	return s
@@ -319,7 +319,7 @@ func checkLanguage(requestrls, child *Entry) *Entry {
 }
 
 func checkReplacement(requestrls, child *Entry) *Entry {
-	if rls.MustNormalize(child.r.Group) != rls.MustNormalize(requestrls.r.Group) {
+	if Normalize(child.r.Group) != Normalize(requestrls.r.Group) {
 		return nil
 	}
 
@@ -495,6 +495,10 @@ func compareResults(requestrls, child *Entry, f func(rls.Release) int) *Entry {
 	}
 
 	return nil
+}
+
+func Normalize(buf string) string {
+	return strings.ToLower(strings.TrimSpace(strings.ToValidUTF8(buf, "")))
 }
 
 func Atoi(buf string) (ret int) {
