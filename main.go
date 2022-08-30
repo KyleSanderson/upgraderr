@@ -31,6 +31,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"os"
 )
 
 type Entry struct {
@@ -45,6 +46,8 @@ type upgradereq struct {
 	Password string
 	Host     string
 	Port     uint
+
+	Torrent	[]byte
 }
 
 type timeentry struct {
@@ -78,6 +81,7 @@ func main() {
 	})
 
 	r.Post("/api/upgrade", handleUpgrade)
+	r.Post("/api/cross", handleCross)
 	http.ListenAndServe(":6940", r) /* immutable. this is b's favourite positive 4digit number not starting with a 0. */
 }
 
@@ -112,6 +116,127 @@ func (c *clientmap) getEntries(req upgradereq) chan func(timeentry) {
 	})
 
 	return ch
+}
+
+func (_ *clientmap) getFiles(req upgradereq, hash string) (t *qbittorrent.TorrentFiles, err error) {
+	c := qbittorrent.NewClient(qbittorrent.Settings{
+		Hostname: req.Host,
+		Port:     req.Port,
+		Username: req.User,
+		Password: req.Password,
+	})
+
+	if err = c.Login(); err != nil {
+		return
+	}
+
+	return c.GetFilesInformation(hash)
+}
+
+func (_ *clientmap) getCategories(req upgradereq) (m map[string]qbittorrent.Category, err error) {
+	c := qbittorrent.NewClient(qbittorrent.Settings{
+		Hostname: req.Host,
+		Port:     req.Port,
+		Username: req.User,
+		Password: req.Password,
+	})
+
+	if err = c.Login(); err != nil {
+		return nil, err
+	}
+
+	return c.GetCategories()
+}
+
+func (_ *clientmap) createCategory(req upgradereq, cat, savePath string) error {
+	c := qbittorrent.NewClient(qbittorrent.Settings{
+		Hostname: req.Host,
+		Port:     req.Port,
+		Username: req.User,
+		Password: req.Password,
+	})
+
+	if err := c.Login(); err != nil {
+		return err
+	}
+
+	return c.CreateCategory(cat, savePath)
+}
+
+func (_ *clientmap) submitTorrent(req upgradereq, opts *qbittorrent.TorrentAddOptions) error {
+	c := qbittorrent.NewClient(qbittorrent.Settings{
+		Hostname: req.Host,
+		Port:     req.Port,
+		Username: req.User,
+		Password: req.Password,
+	})
+
+	if err := c.Login(); err != nil {
+		return err
+	}
+
+	f, err := os.CreateTemp("", "upgraderr-sub.")
+	if err != nil {
+		return fmt.Errorf("Unable to tmpfile: %q", err)
+	}
+
+	defer f.Close()
+	defer os.Remove(f.Name())
+
+	if _, err := f.Write(req.Torrent); err != nil {
+		return fmt.Errorf("Unable to write (%q): %q", err, f.Name())
+	}
+
+	if err := f.Sync(); err != nil {
+		return fmt.Errorf("Unable to sync (%q): %q", err, f.Name())
+	}
+
+	return c.AddTorrentFromFile(f.Name(), opts.Prepare())
+}
+
+func (_ *clientmap) getPausedTorrents(req upgradereq) (t []qbittorrent.Torrent, e error) {
+	c := qbittorrent.NewClient(qbittorrent.Settings{
+		Hostname: req.Host,
+		Port:     req.Port,
+		Username: req.User,
+		Password: req.Password,
+	})
+
+	if e = c.Login(); e != nil {
+		return
+	}
+
+	return c.GetTorrentsFilter(qbittorrent.TorrentFilterPaused)
+}
+
+func (_ *clientmap) resumeTorrent(req upgradereq, hash string) error {
+	c := qbittorrent.NewClient(qbittorrent.Settings{
+		Hostname: req.Host,
+		Port:     req.Port,
+		Username: req.User,
+		Password: req.Password,
+	})
+
+	if err := c.Login(); err != nil {
+		return err
+	}
+
+	return c.Resume(append(make([]string, 0), hash))
+}
+
+func (_ *clientmap) deleteTorrent(req upgradereq, hash string) error {
+	c := qbittorrent.NewClient(qbittorrent.Settings{
+		Hostname: req.Host,
+		Port:     req.Port,
+		Username: req.User,
+		Password: req.Password,
+	})
+
+	if err := c.Login(); err != nil {
+		return err
+	}
+
+	return c.DeleteTorrents(append(make([]string, 0), hash), false)
 }
 
 func processReleasesLoop(ch chan func(timeentry), s qbittorrent.Settings) {
@@ -251,6 +376,119 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 	} else {
 		http.Error(w, fmt.Sprintf("Unique submission: %q\n", req.Name), 200)
 	}
+}
+
+func handleCross(w http.ResponseWriter, r *http.Request) {
+	var req upgradereq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), 470)
+		return
+	}
+
+	if len(req.Name) == 0 {
+		http.Error(w, fmt.Sprintf("No title passed.\n"), 469)
+		return
+	}
+
+	ch := make(chan timeentry)
+	gm.getEntries(req) <- func(e timeentry) {
+		ch <- e
+	}
+
+	requestrls := Entry{r: rls.ParseString(req.Name)}
+	mp := <-ch
+
+	if mp.err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 468)
+		return
+	}
+
+	v, ok := mp.e[getFormattedTitle(requestrls.r)]
+	if !ok {
+		http.Error(w, fmt.Sprintf("Not a cross-submission: %q\n", req.Name), 420)
+		return
+	}
+
+	for _, child := range v {
+		if rls.Compare(requestrls.r, child.r) != 0 {
+			continue
+		}
+
+		m, err := gm.getFiles(req, child.t.Hash)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to get files for child (%q): %q\n", child.t.Name, mp.err), 467)
+			return
+		}
+
+		cat := child.t.Category
+		if strings.Contains(cat, ".cross-seed") == false {
+			cats, err := gm.getCategories(req)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Failed to get categories (%q): %q\n", child.t.Name, mp.err), 466)
+				return
+			}
+
+			if v := cats[cat]; ok {
+				save := v.SavePath
+				if len(save) == 0 {
+					save = cat
+				}
+
+				cat += ".cross-seed"
+
+				if err := gm.createCategory(req, cat, save); err != nil {
+					http.Error(w, fmt.Sprintf("Failed to create new category (%q): %q\n",  cat, mp.err), 466)
+					return
+				}
+			}
+		}
+
+		dirLayout := false
+		for _, v := range *m {
+			dirLayout = strings.HasPrefix(child.t.Name, v.Name)
+			break
+		}
+
+		opts := &qbittorrent.TorrentAddOptions{}
+		opts.Paused = BoolPointer(true)
+		opts.SkipHashCheck = BoolPointer(true)
+		if dirLayout {
+			layout := qbittorrent.ContentLayoutSubfolderCreate
+			opts.ContentLayout = &layout
+		} else {
+			layout := qbittorrent.ContentLayoutSubfolderNone
+			opts.ContentLayout = &layout
+		}
+
+		opts.Category = &cat
+
+		if err := gm.submitTorrent(req, opts); err != nil {
+			http.Error(w, fmt.Sprintf("Failed cross submission upload (%q): %q\n", req.Name, err), 460)
+			return
+		}
+
+		pausedt, err := gm.getPausedTorrents(req)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Unable to get paused torrents: %q\n", err), 450)
+		}
+
+		for _, t := range pausedt {
+			if t.Name != child.t.Name {
+				continue
+			}
+
+			if t.Progress < 1 {
+				gm.deleteTorrent(req, t.Hash)
+				break
+			}
+
+			gm.resumeTorrent(req, t.Hash)
+			http.Error(w, fmt.Sprintf("Crossed: %q\n", req.Name), 200)
+		}
+		return
+	}
+
+	http.Error(w, fmt.Sprintf("Failed to cross: %q)\n", req.Name), 430)
 }
 
 func getFormattedTitle(r rls.Release) string {
@@ -530,4 +768,9 @@ func Atoi(buf string) (ret int) {
 	}
 
 	return ret
+}
+
+func BoolPointer(b bool) *bool {
+	// CC ze0s
+	return &b
 }
