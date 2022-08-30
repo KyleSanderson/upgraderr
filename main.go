@@ -194,7 +194,7 @@ func (_ *clientmap) submitTorrent(req upgradereq, opts *qbittorrent.TorrentAddOp
 	return c.AddTorrentFromFile(f.Name(), opts.Prepare())
 }
 
-func (_ *clientmap) getPausedTorrents(req upgradereq) (t []qbittorrent.Torrent, e error) {
+func (_ *clientmap) getErroredTorrents(req upgradereq) (t []qbittorrent.Torrent, e error) {
 	c := qbittorrent.NewClient(qbittorrent.Settings{
 		Hostname: req.Host,
 		Port:     req.Port,
@@ -206,7 +206,7 @@ func (_ *clientmap) getPausedTorrents(req upgradereq) (t []qbittorrent.Torrent, 
 		return
 	}
 
-	return c.GetTorrentsFilter(qbittorrent.TorrentFilterPaused)
+	return c.GetTorrentsFilter(qbittorrent.TorrentFilterError)
 }
 
 func (_ *clientmap) resumeTorrent(req upgradereq, hash string) error {
@@ -450,7 +450,6 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 		}
 
 		opts := &qbittorrent.TorrentAddOptions{}
-		opts.Paused = BoolPointer(true)
 		opts.SkipHashCheck = BoolPointer(true)
 		if dirLayout {
 			layout := qbittorrent.ContentLayoutSubfolderCreate
@@ -467,7 +466,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		pausedt, err := gm.getPausedTorrents(req)
+		pausedt, err := gm.getErroredTorrents(req)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Unable to get paused torrents: %q\n", err), 450)
 		}
@@ -477,18 +476,16 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			if t.Progress < 1 {
-				gm.deleteTorrent(req, t.Hash)
-				break
-			}
-
-			gm.resumeTorrent(req, t.Hash)
-			http.Error(w, fmt.Sprintf("Crossed: %q\n", req.Name), 200)
+			http.Error(w, fmt.Sprintf("Name matched, data did not on cross: %q\n", req.Name), 427)
+			gm.deleteTorrent(req, t.Hash)
+			return
 		}
+
+		http.Error(w, fmt.Sprintf("Crossed: %q\n", req.Name), 200)
 		return
 	}
 
-	http.Error(w, fmt.Sprintf("Failed to cross: %q)\n", req.Name), 430)
+	http.Error(w, fmt.Sprintf("Failed to cross: %q\n", req.Name), 430)
 }
 
 func getFormattedTitle(r rls.Release) string {

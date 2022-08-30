@@ -1,5 +1,5 @@
-github.com/autobrr/autobrr v1.5.0 h1:6cTiXTIepLYFT85DYe/9qY3v9dNyBhnNGzrVQK3nelI=
-github.com/autobrr/autobrr v1.5.0/go.mod h1:6qv2s8l4C+V2GBvJydTzmdtREB2ljldT1EeVuIhHUYA=
+github.com/autobrr/autobrr v1.5.1-0.20220829133031-5a7614f95481 h1:OrARQgje4mMrH1HP+3gY4KT1GxQBk0IQHlk+DhNOwA4=
+github.com/autobrr/autobrr v1.5.1-0.20220829133031-5a7614f95481/go.mod h1:8oJ9CkdILxYst/jeOaOSf1Zb+pCr24BgrkjIBV/Uqto=
 github.com/cytec/releaseparser v0.0.0-20200706155913-2341b265c370 h1:g9q5BGfDdhcXn4EmVZD8UydPXrvhSvgz3FRBn7zAJNs=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/go-chi/chi/v5 v5.0.7 h1:rDTPXLDHGATaeHvVlLcR4Qe0zftYethFucbjVQ1PxU8=

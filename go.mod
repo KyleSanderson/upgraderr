@@ -3,7 +3,7 @@ go 1.18
 module upgraderr
 
 require (
-	github.com/autobrr/autobrr develop
+	github.com/autobrr/autobrr v1.5.1-0.20220829133031-5a7614f95481
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/moistari/rls v0.2.6
 	github.com/sasha-s/go-deadlock v0.3.1
