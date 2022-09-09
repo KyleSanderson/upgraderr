@@ -312,8 +312,8 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 
-			if res := checkResolution(&requestrls, &child); res != nil {
-				if src := checkSource(&requestrls, &child); src == res || src == nil {
+			if res := checkResolution(&requestrls, &child); res != nil && res.t != requestrls.t {
+				if src := checkSource(&requestrls, &child); src == nil || src.t != requestrls.t {
 					parent = *res
 					code = 201
 					break
