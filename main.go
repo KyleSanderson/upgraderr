@@ -27,11 +27,11 @@ import (
 	"github.com/moistari/rls"
 	"github.com/sasha-s/go-deadlock"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
-	"os"
 )
 
 type Entry struct {
@@ -47,8 +47,8 @@ type upgradereq struct {
 	Host     string
 	Port     uint
 
-	Hash	string
-	Torrent	[]byte
+	Hash    string
+	Torrent []byte
 }
 
 type timeentry struct {
@@ -440,7 +440,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 				cat += ".cross-seed"
 
 				if err := gm.createCategory(req, cat, save); err != nil {
-					http.Error(w, fmt.Sprintf("Failed to create new category (%q): %q\n",  cat, mp.err), 466)
+					http.Error(w, fmt.Sprintf("Failed to create new category (%q): %q\n", cat, mp.err), 466)
 					return
 				}
 			}
@@ -448,7 +448,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 
 		opts := &qbittorrent.TorrentAddOptions{
 			SkipHashCheck: BoolPointer(true),
-			Category: &cat,
+			Category:      &cat,
 		}
 
 		if dirLayout {
