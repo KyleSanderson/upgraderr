@@ -47,6 +47,7 @@ type upgradereq struct {
 	Host     string
 	Port     uint
 
+	Hash	string
 	Torrent	[]byte
 }
 
@@ -253,17 +254,13 @@ func processReleasesLoop(ch chan func(timeentry), s qbittorrent.Settings) {
 
 				c := qbittorrent.NewClient(s)
 				if err := c.Login(); err != nil {
-					clone := mp
-					clone.err = err
-					go f(clone)
+					go f(timeentry{err: err})
 					continue
 				}
 
 				torrents, err := c.GetTorrents()
 				if err != nil {
-					clone := mp
-					clone.err = err
-					go f(clone)
+					go f(timeentry{err: err})
 					continue
 				}
 
@@ -420,6 +417,12 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		dirLayout := false
+		for _, v := range *m {
+			dirLayout = strings.HasPrefix(child.t.Name, v.Name)
+			break
+		}
+
 		cat := child.t.Category
 		if strings.Contains(cat, ".cross-seed") == false {
 			cats, err := gm.getCategories(req)
@@ -443,14 +446,11 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		dirLayout := false
-		for _, v := range *m {
-			dirLayout = strings.HasPrefix(child.t.Name, v.Name)
-			break
+		opts := &qbittorrent.TorrentAddOptions{
+			SkipHashCheck: BoolPointer(true),
+			Category: &cat,
 		}
 
-		opts := &qbittorrent.TorrentAddOptions{}
-		opts.SkipHashCheck = BoolPointer(true)
 		if dirLayout {
 			layout := qbittorrent.ContentLayoutSubfolderCreate
 			opts.ContentLayout = &layout
@@ -459,26 +459,27 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 			opts.ContentLayout = &layout
 		}
 
-		opts.Category = &cat
-
 		if err := gm.submitTorrent(req, opts); err != nil {
 			http.Error(w, fmt.Sprintf("Failed cross submission upload (%q): %q\n", req.Name, err), 460)
 			return
 		}
 
-		pausedt, err := gm.getErroredTorrents(req)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Unable to get paused torrents: %q\n", err), 450)
-		}
-
-		for _, t := range pausedt {
-			if t.Name != child.t.Name {
-				continue
+		for i := 0; i < 3; i++ {
+			pausedt, err := gm.getErroredTorrents(req)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Unable to get paused torrents: %q\n", err), 450)
+				return
 			}
 
-			http.Error(w, fmt.Sprintf("Name matched, data did not on cross: %q\n", req.Name), 427)
-			gm.deleteTorrent(req, t.Hash)
-			return
+			for _, t := range pausedt {
+				if (len(req.Hash) != 0 && req.Hash != t.Hash) || (len(req.Hash) == 0 && req.Name != t.Name) {
+					continue
+				}
+
+				http.Error(w, fmt.Sprintf("Name matched, data did not on cross: %q\n", req.Name), 427)
+				gm.deleteTorrent(req, t.Hash)
+				return
+			}
 		}
 
 		http.Error(w, fmt.Sprintf("Crossed: %q\n", req.Name), 200)
@@ -489,13 +490,13 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 }
 
 func getFormattedTitle(r rls.Release) string {
-	s := fmt.Sprintf("%s%s%s%04d%02d%02d%02d%03d", Normalize(r.Artist), Normalize(r.Title), Normalize(r.Subtitle), r.Year, r.Month, r.Day, r.Series, r.Episode)
+	s := fmt.Sprintf("%s%s%s%04d%02d%02d%02d%03d", rls.MustNormalize(r.Artist), rls.MustNormalize(r.Title), rls.MustNormalize(r.Subtitle), r.Year, r.Month, r.Day, r.Series, r.Episode)
 	for _, a := range r.Cut {
-		s += Normalize(a)
+		s += rls.MustNormalize(a)
 	}
 
 	for _, a := range r.Edition {
-		s += Normalize(a)
+		s += rls.MustNormalize(a)
 	}
 
 	return s
@@ -554,7 +555,7 @@ func checkLanguage(requestrls, child *Entry) *Entry {
 }
 
 func checkReplacement(requestrls, child *Entry) *Entry {
-	if Normalize(child.r.Group) != Normalize(requestrls.r.Group) {
+	if rls.MustNormalize(child.r.Group) != rls.MustNormalize(requestrls.r.Group) {
 		return nil
 	}
 
