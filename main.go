@@ -20,6 +20,7 @@ package main
 
 import (
 	"encoding/json"
+	"encoding/base64"
 	"fmt"
 	"github.com/autobrr/autobrr/pkg/qbittorrent"
 	"github.com/go-chi/chi/v5"
@@ -183,7 +184,7 @@ func (_ *clientmap) submitTorrent(req upgradereq, opts *qbittorrent.TorrentAddOp
 
 	defer f.Close()
 	defer os.Remove(f.Name())
-
+	
 	if _, err := f.Write(req.Torrent); err != nil {
 		return fmt.Errorf("Unable to write (%q): %q", err, f.Name())
 	}
@@ -406,6 +407,10 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if t, err := base64.StdEncoding.DecodeString(strings.Trim(strings.TrimSpace(string(req.Torrent)), `"`)); err == nil {
+			req.Torrent = t
+	}
+
 	for _, child := range v {
 		if rls.Compare(requestrls.r, child.r) != 0 {
 			continue
@@ -419,7 +424,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 
 		dirLayout := false
 		for _, v := range *m {
-			dirLayout = strings.HasPrefix(child.t.Name, v.Name)
+			dirLayout = strings.HasPrefix(v.Name, child.t.Name)
 			break
 		}
 
