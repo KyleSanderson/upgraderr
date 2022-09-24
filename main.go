@@ -429,14 +429,13 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, child := range v {
-		if rls.Compare(requestrls.r, child.r) != 0 {
+		if rls.Compare(requestrls.r, child.r) != 0 || child.t.AmountLeft > 0 {
 			continue
 		}
 
 		m, err := gm.getFiles(req, child.t.Hash)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to get files for child (%q): %q\n", child.t.Name, mp.err), 467)
-			return
+			continue
 		}
 
 		dirLayout := false
