@@ -48,7 +48,7 @@ type upgradereq struct {
 	Port     uint
 
 	Hash    string
-	Torrent []byte
+	Torrent json.RawMessage
 }
 
 type timeentry struct {
