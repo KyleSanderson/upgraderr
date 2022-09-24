@@ -184,7 +184,7 @@ func (_ *clientmap) submitTorrent(req upgradereq, opts *qbittorrent.TorrentAddOp
 
 	defer f.Close()
 	defer os.Remove(f.Name())
-	
+
 	if _, err := f.Write(req.Torrent); err != nil {
 		return fmt.Errorf("Unable to write (%q): %q", err, f.Name())
 	}
@@ -409,6 +409,23 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 
 	if t, err := base64.StdEncoding.DecodeString(strings.Trim(strings.TrimSpace(string(req.Torrent)), `"`)); err == nil {
 			req.Torrent = t
+	} else {
+		t := strings.Trim(strings.TrimSpace(string(req.Torrent)), `\"[`)
+		b := make([]byte, 0, len(t)/3)
+
+		for {
+			r, valid, z := Atoi(t)
+			if !valid {
+				break
+			}
+
+			b = append(b, byte(r))
+			t = z
+		}
+
+		if len(b) {
+			req.Torrent = b
+		}
 	}
 
 	for _, child := range v {
@@ -716,7 +733,7 @@ func checkResolution(requestrls, child *Entry) *Entry {
 	}
 
 	return compareResults(requestrls, child, func(e rls.Release) int {
-		i := Atoi(e.Resolution)
+		i, _, _ := Atoi(e.Resolution)
 		if i == 0 {
 			i = 480
 		}
@@ -742,9 +759,9 @@ func Normalize(buf string) string {
 	return strings.ToLower(strings.TrimSpace(strings.ToValidUTF8(buf, "")))
 }
 
-func Atoi(buf string) (ret int) {
+func Atoi(buf string) (ret int, valid bool, pos string) {
 	if len(buf) == 0 {
-		return ret
+		return ret, false, buf
 	}
 
 	i := 0
@@ -762,6 +779,7 @@ func Atoi(buf string) (ret int) {
 			break
 		}
 
+		valid = true
 		ret *= 10
 		ret += d
 	}
@@ -770,7 +788,7 @@ func Atoi(buf string) (ret int) {
 		ret *= -1
 	}
 
-	return ret
+	return ret, valid, buf[i:]
 }
 
 func BoolPointer(b bool) *bool {
