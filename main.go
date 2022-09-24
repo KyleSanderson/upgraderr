@@ -423,7 +423,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 			t = z
 		}
 
-		if len(b) {
+		if len(b) != 0 {
 			req.Torrent = b
 		}
 	}
