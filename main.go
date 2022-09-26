@@ -165,6 +165,36 @@ func (_ *clientmap) createCategory(req upgradereq, cat, savePath string) error {
 	return c.CreateCategory(cat, savePath)
 }
 
+func (_ *clientmap) recheckTorrent(req upgradereq) error {
+	c := qbittorrent.NewClient(qbittorrent.Settings{
+		Hostname: req.Host,
+		Port:     req.Port,
+		Username: req.User,
+		Password: req.Password,
+	})
+
+	if err := c.Login(); err != nil {
+		return err
+	}
+
+	return c.Recheck(append(make([]string, 0, 1), req.Hash))
+}
+
+func (_ *clientmap) setTorrentManagement(req upgradereq, enable bool) error {
+	c := qbittorrent.NewClient(qbittorrent.Settings{
+		Hostname: req.Host,
+		Port:     req.Port,
+		Username: req.User,
+		Password: req.Password,
+	})
+
+	if err := c.Login(); err != nil {
+		return err
+	}
+
+	return c.SetAutoManagement(append(make([]string, 0, 1), req.Hash), enable)
+}
+
 func (_ *clientmap) submitTorrent(req upgradereq, opts *qbittorrent.TorrentAddOptions) error {
 	c := qbittorrent.NewClient(qbittorrent.Settings{
 		Hostname: req.Host,
@@ -196,7 +226,7 @@ func (_ *clientmap) submitTorrent(req upgradereq, opts *qbittorrent.TorrentAddOp
 	return c.AddTorrentFromFile(f.Name(), opts.Prepare())
 }
 
-func (_ *clientmap) getErroredTorrents(req upgradereq) (t []qbittorrent.Torrent, e error) {
+func (_ *clientmap) getTorrent(req upgradereq) (qbittorrent.Torrent, error) {
 	c := qbittorrent.NewClient(qbittorrent.Settings{
 		Hostname: req.Host,
 		Port:     req.Port,
@@ -204,14 +234,45 @@ func (_ *clientmap) getErroredTorrents(req upgradereq) (t []qbittorrent.Torrent,
 		Password: req.Password,
 	})
 
-	if e = c.Login(); e != nil {
-		return
+	if err := c.Login(); err != nil {
+		return qbittorrent.Torrent{}, err
 	}
 
-	return c.GetTorrentsFilter(qbittorrent.TorrentFilterError)
+	if len(req.Hash) != 0 {
+		t, err := c.GetTorrents(qbittorrent.TorrentFilterOptions{Hashes:append(make([]string, 0, 1), req.Hash)})
+		if err != nil {
+			return qbittorrent.Torrent{}, err
+		} else if len(t) == 0 {
+			return qbittorrent.Torrent{}, fmt.Errorf("Unable to find Hash: %q", req.Hash)
+		}
+
+		return t[0], err
+	}
+
+	t, err := c.GetTorrents(qbittorrent.TorrentFilterOptions{Tag:StringPointer("upgraderr")})
+	if err != nil {
+		return qbittorrent.Torrent{}, err
+	}
+
+	for _, v := range t {
+		switch v.State {
+			case qbittorrent.TorrentStateError, qbittorrent.TorrentStateMissingFiles,
+			qbittorrent.TorrentStatePausedDl, qbittorrent.TorrentStatePausedUp,
+			qbittorrent.TorrentStateCheckingDl, qbittorrent.TorrentStateCheckingUp, qbittorrent.TorrentStateCheckingResumeData:
+				if req.Name == v.Name {
+					return v, nil
+				}
+			default:
+				if req.Name == v.Name {
+					fmt.Printf("Found non-conforming: %q | %q\n", v.Name, v.State)
+				}
+		}
+	}
+
+	return qbittorrent.Torrent{}, fmt.Errorf("Unable to find %q", req.Name)
 }
 
-func (_ *clientmap) resumeTorrent(req upgradereq, hash string) error {
+func (_ *clientmap) resumeTorrent(req upgradereq) error {
 	c := qbittorrent.NewClient(qbittorrent.Settings{
 		Hostname: req.Host,
 		Port:     req.Port,
@@ -223,10 +284,10 @@ func (_ *clientmap) resumeTorrent(req upgradereq, hash string) error {
 		return err
 	}
 
-	return c.Resume(append(make([]string, 0), hash))
+	return c.Resume(append(make([]string, 0, 1), req.Hash))
 }
 
-func (_ *clientmap) deleteTorrent(req upgradereq, hash string) error {
+func (_ *clientmap) setLocationTorrent(req upgradereq, location string) error {
 	c := qbittorrent.NewClient(qbittorrent.Settings{
 		Hostname: req.Host,
 		Port:     req.Port,
@@ -238,7 +299,37 @@ func (_ *clientmap) deleteTorrent(req upgradereq, hash string) error {
 		return err
 	}
 
-	return c.DeleteTorrents(append(make([]string, 0), hash), false)
+	return c.SetLocation(append(make([]string, 0, 1), req.Hash), location)
+}
+
+func (_ *clientmap) deleteTorrent(req upgradereq) error {
+	c := qbittorrent.NewClient(qbittorrent.Settings{
+		Hostname: req.Host,
+		Port:     req.Port,
+		Username: req.User,
+		Password: req.Password,
+	})
+
+	if err := c.Login(); err != nil {
+		return err
+	}
+
+	return c.DeleteTorrents(append(make([]string, 0, 1), req.Hash), false)
+}
+
+func (_ *clientmap) renameFile(req upgradereq, hash, oldPath, newPath string) error {
+	c := qbittorrent.NewClient(qbittorrent.Settings{
+		Hostname: req.Host,
+		Port:     req.Port,
+		Username: req.User,
+		Password: req.Password,
+	})
+
+	if err := c.Login(); err != nil {
+		return err
+	}
+
+	return c.RenameFile(hash, oldPath, newPath)
 }
 
 func processReleasesLoop(ch chan func(timeentry), s qbittorrent.Settings) {
@@ -259,7 +350,7 @@ func processReleasesLoop(ch chan func(timeentry), s qbittorrent.Settings) {
 					continue
 				}
 
-				torrents, err := c.GetTorrents()
+				torrents, err := c.GetTorrents(qbittorrent.TorrentFilterOptions{})
 				if err != nil {
 					go f(timeentry{err: err})
 					continue
@@ -408,7 +499,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if t, err := base64.StdEncoding.DecodeString(strings.Trim(strings.TrimSpace(string(req.Torrent)), `"`)); err == nil {
-			req.Torrent = t
+		req.Torrent = t
 	} else {
 		t := strings.Trim(strings.TrimSpace(string(req.Torrent)), `\"[`)
 		b := make([]byte, 0, len(t)/3)
@@ -435,6 +526,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 
 		m, err := gm.getFiles(req, child.t.Hash)
 		if err != nil {
+			fmt.Printf("Failed to get Files %q\n", req.Name)
 			continue
 		}
 
@@ -470,6 +562,8 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 		opts := &qbittorrent.TorrentAddOptions{
 			SkipHashCheck: BoolPointer(true),
 			Category:      &cat,
+			Tags:          StringPointer("upgraderr"),
+			Paused:        BoolPointer(true),
 		}
 
 		if dirLayout {
@@ -485,25 +579,138 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		for i := 0; i < 3; i++ {
-			pausedt, err := gm.getErroredTorrents(req)
+		for i := 0; i < 56; i++ {
+			t, err := gm.getTorrent(req)
 			if err != nil {
-				http.Error(w, fmt.Sprintf("Unable to get paused torrents: %q\n", err), 450)
-				return
+				fmt.Printf("Couldn't find %q: %q\n", req.Name, err)
+				continue
 			}
 
-			for _, t := range pausedt {
-				if (len(req.Hash) != 0 && req.Hash != t.Hash) || (len(req.Hash) == 0 && req.Name != t.Name) {
-					continue
-				}
+			if len(req.Hash) == 0 {
+				req.Hash = t.Hash
+				fmt.Printf("FOUND: %#v\n", t)
+				i = 0
+			}
 
-				http.Error(w, fmt.Sprintf("Name matched, data did not on cross: %q\n", req.Name), 427)
-				gm.deleteTorrent(req, t.Hash)
-				return
+			fmt.Printf("State: %#v\n", t)
+			switch t.State {
+				case qbittorrent.TorrentStateMissingFiles:
+					gm.recheckTorrent(req)
+				case qbittorrent.TorrentStatePausedUp:
+					if err := gm.resumeTorrent(req); err == nil {
+						http.Error(w, fmt.Sprintf("Crossed: %q\n", req.Name), 200)
+						return
+					}
+				case qbittorrent.TorrentStatePausedDl:
+					if t.Progress < 0.8 {
+						if err := gm.deleteTorrent(req); err == nil {
+							http.Error(w, fmt.Sprintf("Name matched, data did not on cross: %q\n", req.Name), 427)
+							return
+						}
+
+						break
+					}
+
+					if files, err := gm.getFiles(req, t.Hash); err == nil {
+						damage := false
+						for _, f := range *files {
+							if f.Progress == 1.0 {
+								continue
+							}
+
+							damage = true
+							break
+						}
+
+						if damage == false {
+							if err := gm.resumeTorrent(req); err == nil {
+								http.Error(w, fmt.Sprintf("Crossed: %q\n", req.Name), 200)
+								return
+							}
+						}
+
+						damage = false
+						for i := 0; i < 3; i++ {
+							if err := gm.deleteTorrent(req); err == nil {
+								break
+							}
+						}
+
+						/* This is still the old Torrent. */
+						atm := t.AutoManaged
+						oldpath := t.SavePath
+						opts.SavePath = StringPointer(oldpath + "/.tmp")
+						for i := 0; i < 9; i++ {
+							if err := gm.submitTorrent(req, opts); err == nil {
+								damage = true
+								break
+							}
+						}
+
+						if !damage {
+							http.Error(w, fmt.Sprintf("Failed to adv cross: %q\n", req.Name), 455)
+							gm.deleteTorrent(req)
+							return
+						}
+
+						for t.State = "check"; strings.Contains(string(t.State), "check"); t, err = gm.getTorrent(req) { if err != nil{ t.State = "check" }}
+
+						for _, f := range *files {
+							if f.Progress == 1.0 {
+								continue
+							}
+
+							for _, pf := range *m {
+								if pf.Name != f.Name {
+									continue
+								}
+
+								np := ""
+								if idx := strings.LastIndex(f.Name, "/"); idx != -1 {
+									np = f.Name[:idx] + t.Hash + " " + f.Name[idx+1:]
+								} else {
+									np = t.Hash + " " + f.Name
+								}
+
+								for i := 0; i < 3; i++ {
+									if gm.renameFile(req, req.Hash, f.Name, np) == nil {
+										break
+									}
+								}
+							}
+						}
+
+						for i := 0; i < 3; i++ {
+							if gm.setLocationTorrent(req, oldpath) == nil {
+								break
+							}
+						}
+
+						for i := 0; i < 3; i++ {
+							if t.AutoManaged == atm || gm.setTorrentManagement(req, atm) == nil {
+								break
+							}
+						}
+
+						for i := 0; i < 3; i++ {
+							if gm.recheckTorrent(req) == nil {
+								break
+							}
+						}
+
+						for i := 0; i < 3; i++ {
+							if gm.resumeTorrent(req) == nil {
+								break
+							}
+						}
+					}
+				case qbittorrent.TorrentStateCheckingUp,qbittorrent.TorrentStateCheckingDl,qbittorrent.TorrentStateCheckingResumeData:
+					i--
 			}
 		}
-
-		http.Error(w, fmt.Sprintf("Crossed: %q\n", req.Name), 200)
+		
+		http.Error(w, fmt.Sprintf("Unable to get paused torrents: %q\n", err), 450)
+		
 		return
 	}
 
@@ -793,4 +1000,8 @@ func Atoi(buf string) (ret int, valid bool, pos string) {
 func BoolPointer(b bool) *bool {
 	// CC ze0s
 	return &b
+}
+
+func StringPointer(s string) *string {
+	return &s
 }

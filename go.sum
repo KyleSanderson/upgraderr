@@ -1,5 +1,7 @@
 github.com/autobrr/autobrr v1.7.1 h1:MkDKqXvuSwZNb1b4IjnF0Du08Blu8f6FnArWI3NI4g4=
 github.com/autobrr/autobrr v1.7.1/go.mod h1:XfE3ng03ahprQQK72zVDs+izrl/9YZhlr4cMXSvCcgs=
+github.com/autobrr/autobrr v1.7.2-0.20220926042757-a0070b728866 h1:O4DwQmX35ocKaGYjKxmTK30JgXhpWecgdW3Ydm74hho=
+github.com/autobrr/autobrr v1.7.2-0.20220926042757-a0070b728866/go.mod h1:XfE3ng03ahprQQK72zVDs+izrl/9YZhlr4cMXSvCcgs=
 github.com/go-chi/chi/v5 v5.0.7 h1:rDTPXLDHGATaeHvVlLcR4Qe0zftYethFucbjVQ1PxU8=
 github.com/go-chi/chi/v5 v5.0.7/go.mod h1:DslCQbL2OYiznFReuXYUmQ2hGd1aDpCnlMNITLSKoi8=
 github.com/moistari/rls v0.4.2 h1:6atK0sCHB911c5KfwAzYLZUICtaBYrj7QLXdnLegsrE=
