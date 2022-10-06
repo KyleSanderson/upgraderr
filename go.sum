@@ -2,10 +2,16 @@ github.com/autobrr/autobrr v1.7.1 h1:MkDKqXvuSwZNb1b4IjnF0Du08Blu8f6FnArWI3NI4g4
 github.com/autobrr/autobrr v1.7.1/go.mod h1:XfE3ng03ahprQQK72zVDs+izrl/9YZhlr4cMXSvCcgs=
 github.com/autobrr/autobrr v1.7.2-0.20220926042757-a0070b728866 h1:O4DwQmX35ocKaGYjKxmTK30JgXhpWecgdW3Ydm74hho=
 github.com/autobrr/autobrr v1.7.2-0.20220926042757-a0070b728866/go.mod h1:XfE3ng03ahprQQK72zVDs+izrl/9YZhlr4cMXSvCcgs=
+github.com/autobrr/go-qbittorrent v0.0.0-20221003213831-9a0e8514d6cc h1:Mnkc+sK+ze2bYsgBuYi5fzkAL7bavzhosEPB2EmsiTQ=
+github.com/autobrr/go-qbittorrent v0.0.0-20221003213831-9a0e8514d6cc/go.mod h1:z88B3+O/1/3doQABErvIOOxE4hjpmIpulu6XzDG/q78=
+github.com/avast/retry-go v3.0.0+incompatible h1:4SOWQ7Qs+oroOTQOYnAHqelpCO0biHSxpiH9JdtuBj0=
+github.com/avast/retry-go v3.0.0+incompatible/go.mod h1:XtSnn+n/sHqQIpZ10K1qAevBhOOCWBLXXy3hyiqqBrY=
 github.com/go-chi/chi/v5 v5.0.7 h1:rDTPXLDHGATaeHvVlLcR4Qe0zftYethFucbjVQ1PxU8=
 github.com/go-chi/chi/v5 v5.0.7/go.mod h1:DslCQbL2OYiznFReuXYUmQ2hGd1aDpCnlMNITLSKoi8=
 github.com/moistari/rls v0.4.2 h1:6atK0sCHB911c5KfwAzYLZUICtaBYrj7QLXdnLegsrE=
 github.com/moistari/rls v0.4.2/go.mod h1:+VmEKlV6nBXzhGxyO9NoHIp8ywSQlm89UUGPNi8vZVc=
+github.com/moistari/rls v0.5.5 h1:sVj1G5E2eIeqJQh9sdQ4THXCLEBlJElXVxoUwFBY9Uw=
+github.com/moistari/rls v0.5.5/go.mod h1:+VmEKlV6nBXzhGxyO9NoHIp8ywSQlm89UUGPNi8vZVc=
 github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5 h1:q2e307iGHPdTGp0hoxKjt1H5pDo6utceo3dQVK3I5XQ=
 github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5/go.mod h1:jvVRKCrJTQWu0XVbaOlby/2lO20uSCHEMzzplHXte1o=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
@@ -14,6 +20,8 @@ github.com/sasha-s/go-deadlock v0.3.1 h1:sqv7fDNShgjcaxkO0JNcOAlr8B9+cV5Ey/OB71e
 github.com/sasha-s/go-deadlock v0.3.1/go.mod h1:F73l+cr82YSh10GxyRI6qZiCgK64VaZjwesgfQ1/iLM=
 golang.org/x/net v0.0.0-20220909164309-bea034e7d591 h1:D0B/7al0LLrVC8aWF4+oxpv/m8bc7ViFfVS8/gXGdqI=
 golang.org/x/net v0.0.0-20220909164309-bea034e7d591/go.mod h1:YDH+HFinaLZZlnHAfSS6ZXJJ9M9t4Dl22yv3iI2vPwk=
+golang.org/x/net v0.0.0-20221002022538-bcab6841153b h1:6e93nYa3hNqAvLr0pD4PN1fFS+gKzp2zAXqrnTCstqU=
+golang.org/x/net v0.0.0-20221002022538-bcab6841153b/go.mod h1:YDH+HFinaLZZlnHAfSS6ZXJJ9M9t4Dl22yv3iI2vPwk=
 golang.org/x/sync v0.0.0-20220819030929-7fc1605a5dde h1:ejfdSekXMDxDLbRrJMwUk6KnSLZ2McaUCVcIKM+N6jc=
 golang.org/x/sync v0.0.0-20220819030929-7fc1605a5dde/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/text v0.3.7 h1:olpwvP2KacW1ZWvsR7uQhoyTYvKAupfQrRGBFM352Gk=
