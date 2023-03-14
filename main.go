@@ -489,10 +489,12 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 			}
 
 			switch t.State {
-			case qbittorrent.TorrentStateStalledUp:
+			case qbittorrent.TorrentStateStalledUp, qbittorrent.TorrentStateUploading:
+				req.announceTrackers()
 				return nil /* Nice. */
-			case qbittorrent.TorrentStateStalledDl:
-				fmt.Printf("Considering successful. Stalled download: %q", req.Name)
+			case qbittorrent.TorrentStateStalledDl, qbittorrent.TorrentStateDownloading:
+				req.announceTrackers()
+				fmt.Printf("Considering successful. Downloading: %q", req.Name)
 				return nil
 			case qbittorrent.TorrentStateMissingFiles:
 				req.recheckTorrent()
@@ -527,6 +529,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 						return errors.Wrap(err, "427 Unable to resume valid cross")
 					}
 
+					req.announceTrackers()
 					return nil /* Nice! */
 				}
 
@@ -591,6 +594,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 					return errors.Wrap(err, "429 Failed to Resume")
 				}
 
+				req.announceTrackers()
 				return nil
 			case qbittorrent.TorrentStateCheckingUp, qbittorrent.TorrentStateCheckingDl, qbittorrent.TorrentStateCheckingResumeData:
 				return fmt.Errorf("412 Still Checking: %q", t.State)
