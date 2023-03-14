@@ -21,7 +21,6 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -36,6 +35,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/moistari/rls"
+	"github.com/pkg/errors"
 )
 
 type Entry struct {
@@ -463,15 +463,21 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 			opts.ContentLayout = qbittorrent.ContentLayoutSubfolderNone
 		}
 
-		if err := req.submitTorrent(opts); err != nil {
-			http.Error(w, fmt.Sprintf("Failed cross submission upload (%q): %q\n", req.Name, err), 460)
+		if err = retry.Do(func() error {
+			return req.submitTorrent(opts)
+		},
+			retry.OnRetry(func(n uint, err error) { fmt.Printf("%q: submission attempt %d - %v\n", err, n, req.Name) }),
+			retry.Delay(time.Second*1),
+			retry.Attempts(7),
+			retry.MaxJitter(time.Second*1)); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to cross: %q\n", req.Name), 472)
 			return
 		}
 
 		err = retry.Do(func() error {
 			t, err := req.getTorrent()
 			if err != nil {
-				return errors.New("Unable to find torrent")
+				return errors.Wrap(err, "Unable to find torrent")
 			}
 
 			if len(req.Hash) == 0 {
@@ -481,10 +487,12 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 			switch t.State {
 			case qbittorrent.TorrentStateMissingFiles:
 				req.recheckTorrent()
+				return errors.New("498 Rechecking")
 			case qbittorrent.TorrentStatePausedUp:
 				if err := req.resumeTorrent(); err != nil {
-					return errors.New("497 Unable to resume torrent")
+					return errors.Wrap(err, "497 Unable to resume torrent")
 				}
+				return errors.New("499 PausedUp")
 			case qbittorrent.TorrentStatePausedDl:
 				if t.Progress < 0.8 {
 					return retry.Unrecoverable(errors.New("428 Name matched, data did not on cross"))
@@ -492,7 +500,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 
 				files, err := req.getFiles(req.Hash)
 				if err != nil {
-					return errors.New("432 Unable to get Files")
+					return errors.Wrap(err, "432 Unable to get Files")
 				}
 
 				damage := false
@@ -507,14 +515,14 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 
 				if damage == false {
 					if err := req.resumeTorrent(); err != nil {
-						return errors.New("427 Unable to resume valid cross")
+						return errors.Wrap(err, "427 Unable to resume valid cross")
 					}
 
 					return nil /* Nice! */
 				}
 
 				if err := req.deleteTorrent(); err != nil {
-					return errors.New("424 Unable to delete existing torrent")
+					return errors.Wrap(err, "424 Unable to delete existing torrent")
 				}
 
 				/* This is still the old Torrent. */
@@ -523,7 +531,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 				opts.SavePath = t.SavePath + "/.tmp"
 				if err := req.submitTorrent(opts); err != nil {
 					req.deleteTorrent()
-					return errors.New("455 Failed to adv cross")
+					return errors.Wrap(err, "455 Failed to adv cross")
 				}
 
 				for t.State = "check"; strings.Contains(string(t.State), "check"); t, err = req.getTorrent() {
@@ -557,30 +565,30 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 				}
 
 				if err := req.setLocationTorrent(oldpath); err != nil {
-					return errors.New("435 Failed to change save location")
+					return errors.Wrap(err, "435 Failed to change save location")
 				}
 
 				if t.AutoManaged != atm {
 					if err := req.setTorrentManagement(atm); err != nil {
-						return errors.New("433 Failed to ATM")
+						return errors.Wrap(err, "433 Failed to ATM")
 					}
 				}
 
 				if err := req.recheckTorrent(); err != nil {
-					return errors.New("431 Failed to Recheck")
+					return errors.Wrap(err, "431 Failed to Recheck")
 				}
 
 				if err := req.resumeTorrent(); err != nil {
-					return errors.New("429 Failed to Resume")
+					return errors.Wrap(err, "429 Failed to Resume")
 				}
 
 				return nil
 			case qbittorrent.TorrentStateCheckingUp, qbittorrent.TorrentStateCheckingDl, qbittorrent.TorrentStateCheckingResumeData:
 				req.resumeTorrent()
-				return fmt.Errorf("412 Still Checking: %q\n", t.State)
+				return fmt.Errorf("412 Still Checking: %q", t.State)
 			}
 
-			return nil
+			return fmt.Errorf("End of loop. Continuing: %q", t.State)
 		},
 			retry.OnRetry(func(n uint, err error) { fmt.Printf("%q: attempt %d - %v\n", err, n, req.Name) }),
 			retry.Delay(time.Second*1),
