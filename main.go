@@ -61,6 +61,7 @@ type timeentry struct {
 	d   map[string]rls.Release
 	t   time.Time
 	err error
+	sync.Mutex
 }
 
 var clientmap sync.Map
@@ -122,39 +123,52 @@ func (c *upgradereq) getAllTorrents() timeentry {
 		Password: c.Password,
 	}
 
-	res, ok := torrentmap.Load(set)
-	cur := time.Now()
-	if !ok || res.(timeentry).t.Before(cur) {
-		torrents, err := c.Client.GetTorrents(qbittorrent.TorrentFilterOptions{})
-		if err != nil {
-			return timeentry{err: err}
-		}
-
-		nt := time.Now()
-		mp := timeentry{e: make(map[string][]Entry), t: nt.Add(nt.Sub(cur))}
-
+	f := func() *timeentry {
+		te, ok := torrentmap.Load(set)
 		if ok {
-			mp.d = res.(timeentry).d
-		} else {
-			mp.d = make(map[string]rls.Release)
+			return te.(*timeentry)
 		}
 
-		for _, t := range torrents {
-			r, ok := mp.d[t.Name]
-			if !ok {
-				r = rls.ParseString(t.Name)
-				mp.d[t.Name] = r
-			}
-
-			s := getFormattedTitle(r)
-			mp.e[s] = append(mp.e[s], Entry{t: t, r: r})
-		}
-
-		torrentmap.Store(set, mp)
-		res = mp
+		res := &timeentry{d: make(map[string]rls.Release)}
+		torrentmap.Store(set, res)
+		return res
 	}
 
-	return res.(timeentry)
+	res := f()
+	cur := time.Now()
+	if res.t.After(cur) {
+		return *res
+	}
+
+	res.Lock()
+	defer res.Unlock()
+
+	res = f()
+	if res.t.After(cur) {
+		return *res
+	}
+
+	torrents, err := c.Client.GetTorrents(qbittorrent.TorrentFilterOptions{})
+	if err != nil {
+		return timeentry{err: err}
+	}
+
+	nt := time.Now()
+	res = &timeentry{e: make(map[string][]Entry), t: nt.Add(nt.Sub(cur)), d: res.d}
+
+	for _, t := range torrents {
+		r, ok := res.d[t.Name]
+		if !ok {
+			r = rls.ParseString(t.Name)
+			res.d[t.Name] = r
+		}
+
+		s := getFormattedTitle(r)
+		res.e[s] = append(res.e[s], Entry{t: t, r: r})
+	}
+
+	torrentmap.Store(set, res)
+	return *res
 }
 
 func (c *upgradereq) getFiles(hash string) (*qbittorrent.TorrentFiles, error) {
