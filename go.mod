@@ -1,11 +1,11 @@
-go 1.19
+go 1.20
 
 module upgraderr
 
 require (
-	github.com/autobrr/go-qbittorrent v0.0.0-20221003213831-9a0e8514d6cc
-	github.com/go-chi/chi/v5 v5.0.7
-	github.com/moistari/rls v0.5.5
+	github.com/autobrr/go-qbittorrent v1.3.0
+	github.com/go-chi/chi/v5 v5.0.8
+	github.com/moistari/rls v0.5.6
 )
 
 require (
@@ -15,5 +15,3 @@ require (
 	golang.org/x/sync v0.0.0-20220819030929-7fc1605a5dde // indirect
 	golang.org/x/text v0.3.7 // indirect
 )
-
-replace github.com/autobrr/go-qbittorrent => C:/git/go-qbittorrent

@@ -21,11 +21,8 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/autobrr/go-qbittorrent"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/moistari/rls"
 	"net/http"
 	"os"
 	"strconv"
@@ -33,6 +30,12 @@ import (
 	"sync"
 	"time"
 	"unicode"
+
+	"github.com/autobrr/go-qbittorrent"
+	"github.com/avast/retry-go"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/moistari/rls"
 )
 
 type Entry struct {
@@ -55,6 +58,7 @@ type upgradereq struct {
 
 type timeentry struct {
 	e   map[string][]Entry
+	d   map[string]rls.Release
 	t   time.Time
 	err error
 }
@@ -119,15 +123,29 @@ func (c *upgradereq) getAllTorrents() timeentry {
 	}
 
 	res, ok := torrentmap.Load(set)
-	if !ok || res.(timeentry).t.Unix()+60 < time.Now().Unix() {
+	cur := time.Now()
+	if !ok || res.(timeentry).t.Before(cur) {
 		torrents, err := c.Client.GetTorrents(qbittorrent.TorrentFilterOptions{})
 		if err != nil {
 			return timeentry{err: err}
 		}
 
-		mp := timeentry{e: make(map[string][]Entry), t: time.Now()}
+		nt := time.Now()
+		mp := timeentry{e: make(map[string][]Entry), t: nt.Add(nt.Sub(cur))}
+
+		if ok {
+			mp.d = res.(timeentry).d
+		} else {
+			mp.d = make(map[string]rls.Release)
+		}
+
 		for _, t := range torrents {
-			r := rls.ParseString(t.Name)
+			r, ok := mp.d[t.Name]
+			if !ok {
+				r = rls.ParseString(t.Name)
+				mp.d[t.Name] = r
+			}
+
 			s := getFormattedTitle(r)
 			mp.e[s] = append(mp.e[s], Entry{t: t, r: r})
 		}
@@ -140,7 +158,6 @@ func (c *upgradereq) getAllTorrents() timeentry {
 }
 
 func (c *upgradereq) getFiles(hash string) (*qbittorrent.TorrentFiles, error) {
-	fmt.Printf("HASH: %q\n", hash)
 	return c.Client.GetFilesInformation(hash)
 }
 
@@ -153,23 +170,23 @@ func (c *upgradereq) createCategory(cat, savePath string) error {
 }
 
 func (c *upgradereq) recheckTorrent() error {
-	return c.Client.Recheck(append(make([]string, 0, 1), c.Hash))
+	return c.Client.Recheck([]string{c.Hash})
 }
 
 func (c *upgradereq) setTorrentManagement(enable bool) error {
-	return c.Client.SetAutoManagement(append(make([]string, 0, 1), c.Hash), enable)
+	return c.Client.SetAutoManagement([]string{c.Hash}, enable)
 }
 
 func (c *upgradereq) resumeTorrent() error {
-	return c.Client.Resume(append(make([]string, 0, 1), c.Hash))
+	return c.Client.Resume([]string{c.Hash})
 }
 
 func (c *upgradereq) setLocationTorrent(location string) error {
-	return c.Client.SetLocation(append(make([]string, 0, 1), c.Hash), location)
+	return c.Client.SetLocation([]string{c.Hash}, location)
 }
 
 func (c *upgradereq) deleteTorrent() error {
-	return c.Client.DeleteTorrents(append(make([]string, 0, 1), c.Hash), false)
+	return c.Client.DeleteTorrents([]string{c.Hash}, false)
 }
 
 func (c *upgradereq) renameFile(hash, oldPath, newPath string) error {
@@ -206,7 +223,7 @@ func (c *upgradereq) submitTorrent(opts *qbittorrent.TorrentAddOptions) error {
 
 func (c *upgradereq) getTorrent() (qbittorrent.Torrent, error) {
 	if len(c.Hash) != 0 {
-		torrents, err := c.Client.GetTorrents(qbittorrent.TorrentFilterOptions{Hashes: append(make([]string, 0, 1), c.Hash)})
+		torrents, err := c.Client.GetTorrents(qbittorrent.TorrentFilterOptions{Hashes: []string{c.Hash}})
 		if err != nil {
 			return qbittorrent.Torrent{}, err
 		} else if len(torrents) == 0 {
@@ -222,7 +239,7 @@ func (c *upgradereq) getTorrent() (qbittorrent.Torrent, error) {
 		return qbittorrent.Torrent{}, fmt.Errorf("Unable to find Hash after lookup: %q", c.Hash)
 	}
 
-	t, err := c.Client.GetTorrents(qbittorrent.TorrentFilterOptions{Tag: "upgraderr"})
+	t, err := c.Client.GetTorrents(qbittorrent.TorrentFilterOptions{})
 	if err != nil {
 		return qbittorrent.Torrent{}, err
 	}
@@ -451,59 +468,31 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		for i := 0; i < 56; i++ {
+		err = retry.Do(func() error {
 			t, err := req.getTorrent()
 			if err != nil {
-				fmt.Printf("Couldn't find %q: %q\n", req.Name, err)
-				continue
+				return errors.New("Unable to find torrent")
 			}
 
 			if len(req.Hash) == 0 {
 				req.Hash = t.Hash
-				fmt.Printf("FOUND: %#v\n", t)
-				i = 0
 			}
 
-			fmt.Printf("State: %#v\n", t)
 			switch t.State {
 			case qbittorrent.TorrentStateMissingFiles:
 				req.recheckTorrent()
 			case qbittorrent.TorrentStatePausedUp:
 				if err := req.resumeTorrent(); err != nil {
-					break
+					return errors.New("497 Unable to resume torrent")
 				}
-
-				for k := 0; k < 12; k++ {
-					req.announceTrackers()
-					trackers, _ := req.getTrackers()
-					good := false
-					for _, tr := range trackers {
-						if tr.Status == qbittorrent.TrackerStatusOK {
-							good = true
-							break
-						}
-					}
-
-					if good {
-						break
-					}
-
-					time.Sleep(4)
-				}
-
 			case qbittorrent.TorrentStatePausedDl:
 				if t.Progress < 0.8 {
-					if err := req.deleteTorrent(); err == nil {
-						http.Error(w, fmt.Sprintf("Name matched, data did not on cross: %q\n", req.Name), 427)
-						return
-					}
-
-					break
+					return retry.Unrecoverable(errors.New("428 Name matched, data did not on cross"))
 				}
 
 				files, err := req.getFiles(req.Hash)
 				if err != nil {
-					break
+					return errors.New("432 Unable to get Files")
 				}
 
 				damage := false
@@ -518,16 +507,14 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 
 				if damage == false {
 					if err := req.resumeTorrent(); err != nil {
-						http.Error(w, fmt.Sprintf("Unable to resume valid cross: %q\n", req.Name), 480)
-						return
+						return errors.New("427 Unable to resume valid cross")
 					}
 
-					break
+					return nil /* Nice! */
 				}
 
 				if err := req.deleteTorrent(); err != nil {
-					http.Error(w, fmt.Sprintf("Unable to delete existing torrent: %q | %q | %q\n", req.Name, req.Hash, err), 424)
-					return
+					return errors.New("424 Unable to delete existing torrent")
 				}
 
 				/* This is still the old Torrent. */
@@ -535,9 +522,8 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 				oldpath := t.SavePath
 				opts.SavePath = t.SavePath + "/.tmp"
 				if err := req.submitTorrent(opts); err != nil {
-					http.Error(w, fmt.Sprintf("Failed to adv cross: %q\n", req.Name), 455)
 					req.deleteTorrent()
-					return
+					return errors.New("455 Failed to adv cross")
 				}
 
 				for t.State = "check"; strings.Contains(string(t.State), "check"); t, err = req.getTorrent() {
@@ -556,11 +542,14 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 							continue
 						}
 
-						np := ""
+						var np string
 						if idx := strings.LastIndex(f.Name, "/"); idx != -1 {
-							np = f.Name[:idx] + t.Hash + " " + f.Name[idx+1:]
+							np = f.Name[:idx] + t.Hash
+							if len(f.Name) > idx+1 {
+								np += "_" + f.Name[idx+1:]
+							}
 						} else {
-							np = t.Hash + " " + f.Name
+							np = t.Hash + "_" + f.Name
 						}
 
 						req.renameFile(req.Hash, f.Name, np) /* if it fails. so be it. */
@@ -568,33 +557,45 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 				}
 
 				if err := req.setLocationTorrent(oldpath); err != nil {
-					http.Error(w, fmt.Sprintf("Failed to change save location: %q | %q\n", req.Name, err), 435)
-					return
+					return errors.New("435 Failed to change save location")
 				}
 
 				if t.AutoManaged != atm {
 					if err := req.setTorrentManagement(atm); err != nil {
-						http.Error(w, fmt.Sprintf("Failed to ATM: %q | %q\n", req.Name, err), 433)
-						return
+						return errors.New("433 Failed to ATM")
 					}
 				}
 
 				if err := req.recheckTorrent(); err != nil {
-					http.Error(w, fmt.Sprintf("Failed to Recheck: %q | %q\n", req.Name, err), 431)
-					return
+					return errors.New("431 Failed to Recheck")
 				}
 
 				if err := req.resumeTorrent(); err != nil {
-					http.Error(w, fmt.Sprintf("Failed to Resume: %q | %q\n", req.Name, err), 429)
-					return
+					return errors.New("429 Failed to Resume")
 				}
+
+				return nil
 			case qbittorrent.TorrentStateCheckingUp, qbittorrent.TorrentStateCheckingDl, qbittorrent.TorrentStateCheckingResumeData:
-				i--
+				req.resumeTorrent()
+				return fmt.Errorf("412 Still Checking: %q\n", t.State)
 			}
+
+			return nil
+		},
+			retry.OnRetry(func(n uint, err error) { fmt.Printf("%q: attempt %d - %v\n", err, n, req.Name) }),
+			retry.Delay(time.Second*1),
+			retry.Attempts(47),
+			retry.MaxJitter(time.Second*1),
+		)
+
+		if err == nil {
+			http.Error(w, fmt.Sprintf("Crossed Successfully: %q", req.Name), 200)
+			return
 		}
 
-		http.Error(w, fmt.Sprintf("Unable to get paused torrents: %q\n", err), 450)
-		return
+		if err != nil {
+			req.deleteTorrent()
+		}
 	}
 
 	http.Error(w, fmt.Sprintf("Failed to cross: %q\n", req.Name), 430)
@@ -878,13 +879,4 @@ func Atoi(buf string) (ret int, valid bool, pos string) {
 	}
 
 	return ret, valid, buf[i:]
-}
-
-func BoolPointer(b bool) *bool {
-	// CC ze0s
-	return &b
-}
-
-func StringPointer(s string) *string {
-	return &s
 }
