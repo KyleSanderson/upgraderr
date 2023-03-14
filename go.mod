@@ -3,7 +3,7 @@ go 1.20
 module upgraderr
 
 require (
-	github.com/autobrr/go-qbittorrent v1.3.0
+	github.com/autobrr/go-qbittorrent v1.3.1-0.20230314025213-b445ea3ebbea
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/moistari/rls v0.5.6
 )
