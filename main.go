@@ -695,11 +695,12 @@ func checkReplacement(requestrls, child *Entry) *Entry {
 	sm := map[string]int{
 		"COMPLETE":   0,
 		"REMUX":      1,
-		"EXTENDED":   2,
-		"REMASTERED": 3,
-		"PROPER":     4,
-		"REPACK":     5,
-		"INTERNAL":   6,
+		"FS":         2,
+		"EXTENDED":   3,
+		"REMASTERED": 4,
+		"PROPER":     5,
+		"REPACK":     6,
+		"INTERNAL":   7,
 	}
 
 	return compareResults(requestrls, child, func(e rls.Release) int {
