@@ -181,6 +181,10 @@ func (c *upgradereq) resumeTorrent() error {
 	return c.Client.Resume([]string{c.Hash})
 }
 
+func (c *upgradereq) pauseTorrent() error {
+	return c.Client.Pause([]string{c.Hash})
+}
+
 func (c *upgradereq) setLocationTorrent(location string) error {
 	return c.Client.SetLocation([]string{c.Hash}, location)
 }
@@ -485,6 +489,11 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 			}
 
 			switch t.State {
+			case qbittorrent.TorrentStateStalledUp:
+				return nil /* Nice. */
+			case qbittorrent.TorrentStateStalledDl:
+				fmt.Printf("Considering successful. Stalled download: %q", req.Name)
+				return nil
 			case qbittorrent.TorrentStateMissingFiles:
 				req.recheckTorrent()
 				return errors.New("498 Rechecking")
@@ -584,11 +593,11 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 
 				return nil
 			case qbittorrent.TorrentStateCheckingUp, qbittorrent.TorrentStateCheckingDl, qbittorrent.TorrentStateCheckingResumeData:
-				req.resumeTorrent()
 				return fmt.Errorf("412 Still Checking: %q", t.State)
 			}
 
 			return fmt.Errorf("End of loop. Continuing: %q", t.State)
+
 		},
 			retry.OnRetry(func(n uint, err error) { fmt.Printf("%q: attempt %d - %v\n", err, n, req.Name) }),
 			retry.Delay(time.Second*1),
