@@ -268,6 +268,7 @@ func (c *upgradereq) getTorrent() (qbittorrent.Torrent, error) {
 			qbittorrent.TorrentStatePausedDl, qbittorrent.TorrentStatePausedUp,
 			qbittorrent.TorrentStateCheckingDl, qbittorrent.TorrentStateCheckingUp, qbittorrent.TorrentStateCheckingResumeData:
 			if c.Name == v.Name {
+				c.Hash = v.Hash
 				return v, nil
 			}
 		default:
@@ -385,18 +386,18 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(req.Name) == 0 {
-		http.Error(w, fmt.Sprintf("No title passed.\n"), 469)
+		http.Error(w, fmt.Sprintf("No title passed.\n"), 499)
 		return
 	}
 
 	if err := getClient(&req); err != nil {
-		http.Error(w, fmt.Sprintf("Unable to get client: %q\n", err), 471)
+		http.Error(w, fmt.Sprintf("Unable to get client: %q\n", err), 498)
 		return
 	}
 
 	mp := req.getAllTorrents()
 	if mp.err != nil {
-		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 468)
+		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 497)
 		return
 	}
 
@@ -449,11 +450,11 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(cat, ".cross-seed") == false {
 			cats, err := req.getCategories()
 			if err != nil {
-				http.Error(w, fmt.Sprintf("Failed to get categories (%q): %q\n", child.t.Name, mp.err), 466)
+				http.Error(w, fmt.Sprintf("Failed to get categories (%q): %q\n", child.t.Name, err), 496)
 				return
 			}
 
-			if v := cats[cat]; ok {
+			if v, ok := cats[cat]; ok {
 				save := v.SavePath
 				if len(save) == 0 {
 					save = cat
@@ -461,9 +462,11 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 
 				cat += ".cross-seed"
 
-				if err := req.createCategory(cat, save); err != nil {
-					http.Error(w, fmt.Sprintf("Failed to create new category (%q): %q\n", cat, mp.err), 466)
-					return
+				if _, ok := cats[cat]; !ok {
+					if err := req.createCategory(cat, save); err != nil {
+						http.Error(w, fmt.Sprintf("Failed to create new category (%q): %q\n", cat, err), 495)
+						return
+					}
 				}
 			}
 		}
@@ -488,18 +491,14 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 			retry.Delay(time.Second*1),
 			retry.Attempts(7),
 			retry.MaxJitter(time.Second*1)); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to cross: %q\n", req.Name), 472)
+			http.Error(w, fmt.Sprintf("Failed to cross: %q\n", req.Name), 490)
 			return
 		}
 
 		err = retry.Do(func() error {
 			t, err := req.getTorrent()
 			if err != nil {
-				return errors.Wrap(err, "Unable to find torrent")
-			}
-
-			if len(req.Hash) == 0 {
-				req.Hash = t.Hash
+				return errors.Wrap(err, "423 Unable to find torrent")
 			}
 
 			switch t.State {
@@ -512,20 +511,20 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 				return nil
 			case qbittorrent.TorrentStateMissingFiles:
 				req.recheckTorrent()
-				return errors.New("498 Rechecking")
+				return errors.New("469 Rechecking")
 			case qbittorrent.TorrentStatePausedUp:
 				if err := req.resumeTorrent(); err != nil {
-					return errors.Wrap(err, "497 Unable to resume torrent")
+					return errors.Wrap(err, "468 Unable to resume torrent")
 				}
-				return errors.New("499 PausedUp")
+				return errors.New("467 PausedUp")
 			case qbittorrent.TorrentStatePausedDl:
 				if t.Progress < 0.8 {
-					return retry.Unrecoverable(errors.New("428 Name matched, data did not on cross"))
+					return retry.Unrecoverable(errors.New("466 Name matched, data did not on cross"))
 				}
 
 				files, err := req.getFiles(req.Hash)
 				if err != nil {
-					return errors.Wrap(err, "432 Unable to get Files")
+					return errors.Wrap(err, "465 Unable to get Files")
 				}
 
 				damage := false
@@ -540,7 +539,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 
 				if damage == false {
 					if err := req.resumeTorrent(); err != nil {
-						return errors.Wrap(err, "427 Unable to resume valid cross")
+						return errors.Wrap(err, "464 Unable to resume valid cross")
 					}
 
 					req.announceTrackers()
@@ -548,7 +547,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 				}
 
 				if err := req.deleteTorrent(); err != nil {
-					return errors.Wrap(err, "424 Unable to delete existing torrent")
+					return errors.Wrap(err, "463 Unable to delete existing torrent")
 				}
 
 				/* This is still the old Torrent. */
@@ -557,7 +556,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 				opts.SavePath = t.SavePath + "/.tmp"
 				if err := req.submitTorrent(opts); err != nil {
 					req.deleteTorrent()
-					return errors.Wrap(err, "455 Failed to adv cross")
+					return errors.Wrap(err, "450 Failed to adv cross")
 				}
 
 				for t.State = "check"; strings.Contains(string(t.State), "check"); t, err = req.getTorrent() {
@@ -614,7 +613,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 				return fmt.Errorf("412 Still Checking: %q", t.State)
 			}
 
-			return fmt.Errorf("End of loop. Continuing: %q", t.State)
+			return fmt.Errorf("410 End of loop. Continuing: %q", t.State)
 
 		},
 			retry.OnRetry(func(n uint, err error) { fmt.Printf("%q: attempt %d - %v\n", err, n, req.Name) }),
@@ -628,12 +627,17 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if err != nil {
-			req.deleteTorrent()
+		req.deleteTorrent()
+		if ret, _, _ := Atoi(fmt.Sprintf("%s", err)); ret >= 400 {
+			http.Error(w, fmt.Sprintf("Failed to cross %q %q", req.Name, err), ret)
+		} else {
+			http.Error(w, fmt.Sprintf("Failed to cross generic %q %q", req.Name, err), 415)
 		}
+
+		return
 	}
 
-	http.Error(w, fmt.Sprintf("Failed to cross: %q\n", req.Name), 430)
+	http.Error(w, fmt.Sprintf("Failed to cross: %q\n", req.Name), 414)
 }
 
 func getFormattedTitle(r rls.Release) string {
