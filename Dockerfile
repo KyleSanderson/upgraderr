@@ -1,4 +1,4 @@
-FROM golang:1.18 as builder
+FROM golang:1.20 as builder
 COPY . /app
 ENV GOOS=linux CGO_ENABLED=0
 WORKDIR /app
