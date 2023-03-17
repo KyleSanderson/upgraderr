@@ -579,10 +579,10 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 						if idx := strings.LastIndex(f.Name, "/"); idx != -1 {
 							np = f.Name[:idx]
 							if len(f.Name) > idx+1 {
-								np += "/" + t.Hash + "_" + f.Name[idx+1:]
+								np += "/" + req.Hash + "_" + f.Name[idx+1:]
 							}
 						} else {
-							np = t.Hash + "/" + f.Name
+							np = req.Hash + "/" + f.Name
 						}
 
 						req.renameFile(req.Hash, f.Name, np) /* if it fails. so be it. */
