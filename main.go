@@ -311,8 +311,18 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 		for _, child := range v {
 			if rls.Compare(requestrls.r, child.r) == 0 {
 				parent = child
-				code = -1
-				break
+				if child.t.Progress < parent.t.Progress {
+					continue
+				}
+
+				code = 240 + int(child.t.Progress*10.0)
+				if code >= 250 {
+					code = 250
+					/* wtf. API breakage... but assume it's ok */
+					break
+				}
+
+				continue
 			}
 
 			if res := checkResolution(&requestrls, &child); res != nil && res.t != requestrls.t {
@@ -366,9 +376,9 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		if code == -1 {
-			http.Error(w, fmt.Sprintf("Cross submission: %q\n", req.Name), 250)
-		} else if code != 0 {
+		if code > 240 && code <= 250 {
+			http.Error(w, fmt.Sprintf("Cross submission: %q\n", req.Name), code)
+		} else if code > 200 && code < 240 {
 			http.Error(w, fmt.Sprintf("Not an upgrade submission: %q => %q\n", req.Name, parent.t.Name), code)
 		} else {
 			http.Error(w, fmt.Sprintf("Upgrade submission: %q\n", req.Name), 200)
