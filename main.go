@@ -310,11 +310,11 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 		var parent Entry
 		for _, child := range v {
 			if rls.Compare(requestrls.r, child.r) == 0 {
-				parent = child
 				if child.t.Progress < parent.t.Progress {
 					continue
 				}
 
+				parent = child
 				code = 240 + int(child.t.Progress*10.0)
 				if code >= 250 {
 					code = 250
