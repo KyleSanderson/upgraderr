@@ -83,6 +83,7 @@ func main() {
 
 	r.Post("/api/upgrade", handleUpgrade)
 	r.Post("/api/cross", handleCross)
+	r.Post("/api/clean", handleClean)
 	http.ListenAndServe(":6940", r) /* immutable. this is b's favourite positive 4digit number not starting with a 0. */
 }
 
@@ -388,6 +389,134 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func handleClean(w http.ResponseWriter, r *http.Request) {
+	var req upgradereq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), 470)
+		return
+	}
+
+	if err := getClient(&req); err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get client: %q\n", err), 471)
+		return
+	}
+
+	mp := req.getAllTorrents()
+	if mp.err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 468)
+		return
+	}
+
+	t := time.Now().Unix()
+	hashes := make([]string, 0)
+	for _, v := range mp.e {
+		var parent Entry
+		parentMap := make(map[string]int)
+		for _, child := range v {
+			if len(parent.t.Hash) == 0 {
+				parent = child
+			}
+
+			if rls.Compare(parent.r, child.r) == 0 {
+				parentMap[child.t.Name]++
+				continue
+			}
+
+			if res := checkResolution(&parent, &child); res != nil {
+				src := checkSource(&parent, &child)
+				if src == nil {
+					parentMap = make(map[string]int)
+					parent = *res
+					continue
+				} else if src.t.Hash == res.t.Hash {
+					parentMap = make(map[string]int)
+					parent = *src
+					continue
+				}
+			}
+
+			for _, f := range []func(*Entry, *Entry) *Entry{checkHDR, checkChannels, checkSource, checkAudio, checkExtension, checkLanguage, checkReplacement} {
+				if res := f(&parent, &child); res != nil && res.t.Hash != parent.t.Hash {
+					parent = *res
+					parentMap = make(map[string]int)
+					break
+				}
+			}
+
+			// fmt.Printf("Made it to Loop: %q|%q\n", parent.t.Name, child.t.Name)
+		}
+
+		if len(parent.t.Hash) == 0 {
+			continue
+		}
+
+		var parentName string
+		if len(parentMap) == 0 {
+			parentName = parent.t.Name
+		} else {
+			parentNumber := 0
+			for k, i := range parentMap {
+				if i > parentNumber {
+					parentNumber = i
+					parentName = k
+				}
+			}
+		}
+
+		fmt.Printf("Parent: %q\n", parentName)
+		hashMap := make(map[string]struct{})
+		for _, child := range v {
+			if child.t.Name == parentName {
+				continue
+			}
+
+			bContinue := false
+			childHashes := make([]string, 0)
+			for _, subChild := range v {
+				if rls.Compare(subChild.r, child.r) != 0 {
+					continue
+				}
+
+				if subChild.t.CompletionOn == 0 || t-int64(subChild.t.CompletionOn) < 1209600 {
+					bContinue = true
+					break
+				}
+
+				fmt.Printf("Removing: %q\n", subChild.t.Name)
+				childHashes = append(childHashes, subChild.t.Hash)
+			}
+
+			if bContinue {
+				continue
+			}
+
+			for _, h := range childHashes {
+				hashMap[h] = struct{}{}
+			}
+		}
+
+		if len(hashMap) == 0 {
+			continue
+		}
+
+		for k := range hashMap {
+			hashes = append(hashes, k)
+		}
+	}
+
+	if len(hashes) == 0 {
+		http.Error(w, fmt.Sprintf("No eligible torrents to remove."), 205)
+		return
+	}
+
+	if err := req.Client.DeleteTorrents(hashes, true); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to submit %d torrents to remove: %s", len(hashes), err), 420)
+		return
+	}
+
+	http.Error(w, fmt.Sprintf("Removed %d torrents.", len(hashes)), 200)
+}
+
 func handleCross(w http.ResponseWriter, r *http.Request) {
 	var req upgradereq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -691,8 +820,21 @@ func checkExtension(requestrls, child *Entry) *Entry {
 
 func checkLanguage(requestrls, child *Entry) *Entry {
 	sm := map[string]int{
-		"ENGLiSH": 2,
-		"MULTi":   1,
+		"ENGLiSH":    20,
+		"MULTi":      19,
+		"FRENCH":     18,
+		"SWEDiSH":    17,
+		"SWESUB":     16,
+		"NORWEGiAN":  15,
+		"NORDiCSUBS": 14,
+		"DUBBED":     13,
+		"DANiSH":     12,
+		"HiNDI":      11,
+		"NORDiC":     10,
+		"GERMAN":     9,
+		"SUBBED":     8,
+		"CZECH":      7,
+		"RUSSiAN":    1,
 	}
 
 	return compareResults(requestrls, child, func(e rls.Release) int {
@@ -721,14 +863,14 @@ func checkReplacement(requestrls, child *Entry) *Entry {
 	}
 
 	sm := map[string]int{
-		"COMPLETE":   0,
-		"REMUX":      1,
-		"FS":         2,
-		"EXTENDED":   3,
-		"REMASTERED": 4,
-		"PROPER":     5,
-		"REPACK":     6,
-		"INTERNAL":   7,
+		"COMPLETE":   1,
+		"REMUX":      2,
+		"FS":         3,
+		"EXTENDED":   4,
+		"REMASTERED": 5,
+		"PROPER":     6,
+		"REPACK":     7,
+		"INTERNAL":   8,
 	}
 
 	return compareResults(requestrls, child, func(e rls.Release) int {
@@ -749,6 +891,7 @@ func checkReplacement(requestrls, child *Entry) *Entry {
 
 func checkAudio(requestrls, child *Entry) *Entry {
 	sm := map[string]int{
+		"FLAC":       91,
 		"DTS-HD.HRA": 90,
 		"DDPA":       89,
 		"TrueHD":     88,
@@ -757,9 +900,11 @@ func checkAudio(requestrls, child *Entry) *Entry {
 		"Atmos":      85,
 		"DTS-HD":     84,
 		"DDP":        83,
-		"DD":         82,
-		"OPUS":       81,
-		"AAC":        80,
+		"DTS":        82,
+		"DD":         81,
+		"OPUS":       80,
+		"AAC":        79,
+		"DUAL.AUDIO": 70,
 	}
 
 	return compareResults(requestrls, child, func(e rls.Release) int {
@@ -775,7 +920,7 @@ func checkAudio(requestrls, child *Entry) *Entry {
 				fmt.Printf("UNKNOWNAUDIO: %q\n", e.Audio)
 			}
 
-			i = sm["AAC"]
+			i = sm["DUAL.AUDIO"]
 		}
 
 		return i
@@ -803,6 +948,8 @@ func checkSource(requestrls, child *Entry) *Entry {
 		"VHSRiP":     78,
 		"WORKPRiNT":  77,
 		"TS":         76,
+		"HDCAM":      75,
+		"CAM":        74,
 	}
 
 	return compareResults(requestrls, child, func(e rls.Release) int {
