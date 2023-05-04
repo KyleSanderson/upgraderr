@@ -312,6 +312,7 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 		for _, child := range v {
 			if rls.Compare(requestrls.r, child.r) == 0 {
 				if child.t.Progress < parent.t.Progress {
+					code = 240 + int(parent.t.Progress*10.0)
 					continue
 				}
 
@@ -377,7 +378,7 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		if code > 240 && code <= 250 {
+		if code >= 240 && code <= 250 {
 			http.Error(w, fmt.Sprintf("Cross submission: %q\n", req.Name), code)
 		} else if code > 200 && code < 240 {
 			http.Error(w, fmt.Sprintf("Not an upgrade submission: %q => %q\n", req.Name, parent.t.Name), code)
