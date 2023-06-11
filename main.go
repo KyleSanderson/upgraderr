@@ -84,6 +84,7 @@ func main() {
 	r.Post("/api/upgrade", handleUpgrade)
 	r.Post("/api/cross", handleCross)
 	r.Post("/api/clean", handleClean)
+	r.Post("/api/unregistered", handleUnregistered)
 	http.ListenAndServe(":6940", r) /* immutable. this is b's favourite positive 4digit number not starting with a 0. */
 }
 
@@ -778,6 +779,87 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Error(w, fmt.Sprintf("Failed to cross: %q\n", req.Name), 414)
+}
+
+func handleUnregistered(w http.ResponseWriter, r *http.Request) {
+	var req upgradereq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), 470)
+		return
+	}
+
+	if err := getClient(&req); err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get client: %q\n", err), 471)
+		return
+	}
+
+	mp := req.getAllTorrents()
+	if mp.err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 468)
+		return
+	}
+
+	deadTracker := []string{
+		"unregistered",
+		"not registered",
+		"not found",
+		"not exist",
+		"unknown",
+		"uploaded",
+		"upgraded",
+		"season pack",
+		"packs are available",
+		"pack is available",
+		"internal available",
+		"season pack out",
+		"dead",
+		"dupe",
+		"complete season uploaded",
+		"problem with",
+		"specifically banned",
+		"trumped",
+		"i'm sorry dave, i can't do that", // weird stuff from racingforme
+	}
+
+	count := 0
+	for _, set := range mp.e {
+		for _, t := range set {
+			req.Hash = t.t.Hash
+			if len(req.Hash) == 0 {
+				continue
+			}
+
+			trackers, _ := req.getTrackers()
+			alive := false
+
+			for _, tracker := range trackers {
+				if tracker.Status == qbittorrent.TrackerStatusDisabled {
+					continue
+				} else if tracker.Status == qbittorrent.TrackerStatusOK {
+					alive = true
+				} else if tracker.Status == qbittorrent.TrackerStatusNotWorking {
+				} else {
+					continue
+				}
+
+				for _, z := range deadTracker {
+					if strings.Contains(strings.ToLower(tracker.Message), z) {
+						count++
+						req.deleteTorrent()
+						alive = false
+						break
+					}
+				}
+			}
+
+			if !alive {
+				child := req
+				go child.announceTrackers()
+			}
+		}
+	}
+
+	http.Error(w, fmt.Sprintf("Unregistered torrents deleted: %d", count), 200)
 }
 
 func getFormattedTitle(r rls.Release) string {
