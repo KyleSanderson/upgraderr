@@ -34,8 +34,7 @@ http://upgraderr.upgraderr:6940/api/clean
 ```
 { "host":"http://qbittorrent.cat:8080",
   "user":"zees",
-  "password":"bsmom",
-  "name":"{{ .TorrentName | js }}" }
+  "password":"bsmom" }
 ```
 
 * Possible returns
@@ -48,8 +47,7 @@ http://upgraderr.upgraderr:6940/api/unregistered
 ```
 { "host":"http://qbittorrent.cat:8080",
   "user":"zees",
-  "password":"bsmom",
-  "name":"{{ .TorrentName | js }}" }
+  "password":"bsmom" }
 ```
 
 * Possible returns
