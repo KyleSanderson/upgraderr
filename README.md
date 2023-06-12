@@ -54,3 +54,19 @@ http://upgraderr.upgraderr:6940/api/unregistered
   * 200 ok
 * Error returns
   * 400-499
+
+http://upgraderr.upgraderr:6940/api/autobrr/filterupdate
+```
+{ "host":"http://qbittorrent.cat:8080",
+  "user":"zees",
+  "password":"bsmom",
+  "autobrrhost":"http://autobrr.autobrr:7474", 
+  "apikey":"YnNtb21pc3RoZWJlc3Q=",
+  "filterid":69 }
+```
+
+* Possible returns
+  * 200 ok
+* Error returns
+  * 400-499
+
