@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -1203,9 +1204,21 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	singlemap := make(map[string]struct{})
+	replacer := strings.NewReplacer(" ", "?",
+		",", "?",
+		".", "?",
+		"_", "?",
+		"-", "?",
+		"@", "?",
+		"*", "?",
+		"(", "?",
+		")", "?",
+		"/", "?",
+		`\`, "?")
 
+	sane := regexp.MustCompile(`(\?+\?)`)
 	for _, t := range mp.d {
-		singlemap[strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.Trim(strings.ToValidUTF8(strings.ToLower(t.Title), " "), " \n\t"), " ", "?"), ".", "?"), "_", "?"), "-", "?")] = struct{}{}
+		singlemap[sane.ReplaceAllString(strings.TrimRight(strings.Trim(replacer.Replace(strings.ToValidUTF8(strings.ToLower(t.Title), " ")), " \t\r\n"), "?"), "*")] = struct{}{}
 	}
 
 	submit := struct {
@@ -1213,6 +1226,10 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 	}{}
 
 	for k := range singlemap {
+		if len(k) < 1 {
+			continue
+		}
+
 		submit.Shows += k + ","
 	}
 
