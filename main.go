@@ -19,10 +19,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 package main
 
 import (
+	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
 	"os"
 	"strconv"
 	"strings"
@@ -85,6 +88,7 @@ func main() {
 	r.Post("/api/cross", handleCross)
 	r.Post("/api/clean", handleClean)
 	r.Post("/api/unregistered", handleUnregistered)
+	r.Post("/api/autobrr/filterupdate", handleAutobrrFilterUpdate)
 	http.ListenAndServe(":6940", r) /* immutable. this is b's favourite positive 4digit number not starting with a 0. */
 }
 
@@ -1159,4 +1163,96 @@ func Atoi(buf string) (ret int, valid bool, pos string) {
 	}
 
 	return ret, valid, buf[i:]
+}
+
+type autobrrFilterUpdate struct {
+	APIKey      string
+	FilterID    int
+	AutobrrHost string
+	upgradereq
+}
+
+func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
+	var req autobrrFilterUpdate
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), 470)
+		return
+	}
+
+	if req.FilterID == 0 {
+		http.Error(w, fmt.Sprintf("Missing FilterID\n"), 473)
+		return
+	}
+
+	tmp := upgradereq{
+		Host:     req.Host,
+		User:     req.User,
+		Password: req.Password,
+	}
+
+	if err := getClient(&tmp); err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get client: %q\n", err), 471)
+		return
+	}
+
+	req.Client = tmp.Client
+	mp := req.getAllTorrents()
+	if mp.err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 468)
+		return
+	}
+
+	singlemap := make(map[string]struct{})
+
+	for _, t := range mp.d {
+		singlemap[strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.Trim(strings.ToValidUTF8(strings.ToLower(t.Title), " "), " \n\t"), " ", "?"), ".", "?"), "_", "?"), "-", "?")] = struct{}{}
+	}
+
+	submit := struct {
+		Shows string
+	}{}
+
+	for k := range singlemap {
+		submit.Shows += k + ","
+	}
+
+	submit.Shows = strings.Trim(submit.Shows, " ,")
+
+	singlemap = nil
+	body, err := json.Marshal(submit)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Unable to marshall qbittorrent data: %q\n", err), 465)
+		return
+	}
+
+	newreq, err := http.NewRequestWithContext(context.Background(), http.MethodPatch, req.AutobrrHost+"/api/filters/"+fmt.Sprintf("%d", req.FilterID), bytes.NewBuffer(body))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Unable to create new http request: %q\n", err), 463)
+		return
+	}
+
+	newreq.Header.Add("X-API-Token", req.APIKey)
+
+	client := http.Client{
+		Timeout: 90 * time.Second,
+	}
+
+	res, err := client.Do(newreq)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Unable to send to autobrr request: %q\n", err), 452)
+		return
+	}
+
+	defer res.Body.Close()
+	if _, err := httputil.DumpResponse(res, true); err != nil {
+		http.Error(w, fmt.Sprintf("Unable to dump filter response: %q\n", err), 443)
+		return
+	}
+
+	if res.StatusCode != http.StatusNoContent {
+		http.Error(w, fmt.Sprintf("Bad code from Autobrr: %d\n", res.StatusCode), 442)
+		return
+	}
+
+	http.Error(w, fmt.Sprintf("Success: %d\n", len(submit.Shows)), 200)
 }
