@@ -1204,21 +1204,17 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	singlemap := make(map[string]struct{})
-	replacer := strings.NewReplacer(" ", "?",
-		",", "?",
-		".", "?",
-		"_", "?",
-		"-", "?",
-		"@", "?",
-		"*", "?",
-		"(", "?",
-		")", "?",
-		"/", "?",
-		`\`, "?")
-
 	sane := regexp.MustCompile(`(\?+\?)`)
+	replace := regexp.MustCompile("([\x00-\\/\\:-@\\[-\\`\\{-\\~])")
+
 	for _, t := range mp.d {
-		singlemap[sane.ReplaceAllString(strings.TrimRight(strings.Trim(replacer.Replace(strings.ToValidUTF8(strings.ToLower(t.Title), " ")), " \t\r\n"), "?"), "*")] = struct{}{}
+		singlemap[sane.ReplaceAllString(
+			replace.ReplaceAllString(
+				strings.ToValidUTF8(
+					strings.ToLower(t.Title),
+					"?"),
+				"?"),
+			"*")] = struct{}{}
 	}
 
 	submit := struct {
