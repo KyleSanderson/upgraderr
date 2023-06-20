@@ -1273,8 +1273,9 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 type upgraderrExpression struct {
-	Query  string
-	Action string
+	Query   string
+	Action  string
+	Subject string
 	upgradereq
 }
 
@@ -1386,8 +1387,21 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("Unable to recheck torrents: %q\n", mp.err), 412)
 			return
 		}
-	case "setcategory":
-		//req.Client.SetCategory(hashes)
+	case "category":
+		if err := req.Client.SetCategory(hashes, req.Subject); err != nil {
+			http.Error(w, fmt.Sprintf("Unable to category torrents %q: %q\n", req.Subject, mp.err), 411)
+			return
+		}
+	case "tagadd":
+		if err := req.Client.AddTags(hashes, req.Subject); err != nil {
+			http.Error(w, fmt.Sprintf("Unable to addtag torrents %q: %q\n", req.Subject, mp.err), 410)
+			return
+		}
+	case "tagdel":
+		if err := req.Client.RemoveTags(hashes, req.Subject); err != nil {
+			http.Error(w, fmt.Sprintf("Unable to tagdel torrents %q: %q\n", req.Subject, mp.err), 409)
+			return
+		}
 	default:
 		for _, h := range hashes {
 			req.Hash = h
@@ -1398,5 +1412,5 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Printf("Hashes: %d\n", len(hashes))
-	http.Error(w, fmt.Sprintf("Processed: %q\n", len(hashes)), 200)
+	http.Error(w, fmt.Sprintf("Processed: %d\n", len(hashes)), 200)
 }
