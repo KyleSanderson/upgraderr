@@ -34,6 +34,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/antonmedv/expr"
 	"github.com/autobrr/go-qbittorrent"
 	"github.com/avast/retry-go"
 	"github.com/go-chi/chi/v5"
@@ -89,6 +90,7 @@ func main() {
 	r.Post("/api/cross", handleCross)
 	r.Post("/api/clean", handleClean)
 	r.Post("/api/unregistered", handleUnregistered)
+	r.Post("/api/expression", handleExpression)
 	r.Post("/api/autobrr/filterupdate", handleAutobrrFilterUpdate)
 	http.ListenAndServe(":6940", r) /* immutable. this is b's favourite positive 4digit number not starting with a 0. */
 }
@@ -1268,4 +1270,61 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Error(w, fmt.Sprintf("Success: %d\n", len(submit.Shows)), 200)
+}
+
+func handleExpression(w http.ResponseWriter, r *http.Request) {
+	var req upgradereq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), 470)
+		return
+	}
+
+	prog, err := expr.Compile(strings.Trim(string(req.Torrent), `"`), expr.AsBool(),
+		expr.Env(qbittorrent.Torrent{}), expr.Function(
+			"Now",
+			func(params ...any) (any, error) {
+				return time.Now().Unix(), nil
+			},
+		))
+
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to compile expression: %q\n", err), 472)
+		return
+	}
+
+	if err := getClient(&req); err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get client: %q\n", err), 471)
+		return
+	}
+
+	mp := req.getAllTorrents()
+	if mp.err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 468)
+		return
+	}
+
+	hashes := make([]string, 0)
+	for _, te := range mp.e {
+		filterhash := make([]string, 0, len(te))
+		for _, e := range te {
+			res, err := expr.Run(prog, e.t)
+			if err != nil {
+				fmt.Printf("Error: %q\n", err)
+				break
+			} else if res == false {
+				filterhash = []string{}
+				continue
+			}
+
+			filterhash = append(filterhash, e.t.Hash)
+		}
+
+		hashes = append(hashes, filterhash...)
+	}
+
+	for _, h := range hashes {
+		fmt.Printf("Matched: %q\n", h)
+	}
+
+	fmt.Printf("Hashes: %d\n", len(hashes))
 }
