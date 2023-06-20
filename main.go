@@ -1272,14 +1272,20 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, fmt.Sprintf("Success: %d\n", len(submit.Shows)), 200)
 }
 
+type upgraderrExpression struct {
+	Query  string
+	Action string
+	upgradereq
+}
+
 func handleExpression(w http.ResponseWriter, r *http.Request) {
-	var req upgradereq
+	var req upgraderrExpression
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), 470)
 		return
 	}
 
-	prog, err := expr.Compile(strings.Trim(string(req.Torrent), `"`), expr.AsBool(),
+	prog, err := expr.Compile(req.Query, expr.AsBool(),
 		expr.Env(qbittorrent.Torrent{}),
 		expr.Function(
 			"Now",
@@ -1300,10 +1306,18 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := getClient(&req); err != nil {
+	tmp := upgradereq{
+		Host:     req.Host,
+		User:     req.User,
+		Password: req.Password,
+	}
+
+	if err := getClient(&tmp); err != nil {
 		http.Error(w, fmt.Sprintf("Unable to get client: %q\n", err), 471)
 		return
 	}
+
+	req.Client = tmp.Client
 
 	mp := req.getAllTorrents()
 	if mp.err != nil {
@@ -1331,13 +1345,58 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 		hashes = append(hashes, filterhash...)
 	}
 
-	for _, h := range hashes {
-		req.Hash = h
-		t, _ := req.getTorrent()
-		fmt.Printf("Matched: %q\n", t.Name)
+	switch strings.Trim(strings.ToLower(req.Action), `"' `) {
+	case "delete":
+		if err := req.Client.DeleteTorrents(hashes, false); err != nil {
+			http.Error(w, fmt.Sprintf("Unable to delete torrents: %q\n", mp.err), 419)
+			return
+		}
+	case "deletedata":
+		if err := req.Client.DeleteTorrents(hashes, true); err != nil {
+			http.Error(w, fmt.Sprintf("Unable to deletedata torrents: %q\n", mp.err), 418)
+			return
+		}
+	case "forcestart":
+		if err := req.Client.SetForceStart(hashes, true); err != nil {
+			http.Error(w, fmt.Sprintf("Unable to forcestart torrents: %q\n", mp.err), 417)
+			return
+		}
+	case "normalstart":
+		if err := req.Client.SetForceStart(hashes, false); err != nil {
+			http.Error(w, fmt.Sprintf("Unable to normalstart torrents: %q\n", mp.err), 416)
+			return
+		}
+	case "start":
+		if err := req.Client.Resume(hashes); err != nil {
+			http.Error(w, fmt.Sprintf("Unable to resume torrents: %q\n", mp.err), 415)
+			return
+		}
+	case "pause":
+		if err := req.Client.Pause(hashes); err != nil {
+			http.Error(w, fmt.Sprintf("Unable to pause torrents: %q\n", mp.err), 414)
+			return
+		}
+	case "reannounce":
+		if err := req.Client.ReAnnounceTorrents(hashes); err != nil {
+			http.Error(w, fmt.Sprintf("Unable to reannounce torrents: %q\n", mp.err), 413)
+			return
+		}
+	case "recheck":
+		if err := req.Client.Recheck(hashes); err != nil {
+			http.Error(w, fmt.Sprintf("Unable to recheck torrents: %q\n", mp.err), 412)
+			return
+		}
+	case "setcategory":
+		//req.Client.SetCategory(hashes)
+	default:
+		for _, h := range hashes {
+			req.Hash = h
+			t, _ := req.getTorrent()
+			fmt.Printf("Matched: %q\n", t.Name)
+		}
+		fmt.Printf("TEST count: %d\n", len(hashes))
 	}
 
-	//req.Client.DeleteTorrents(hashes, false)
-
 	fmt.Printf("Hashes: %d\n", len(hashes))
+	http.Error(w, fmt.Sprintf("Processed: %q\n", len(hashes)), 200)
 }
