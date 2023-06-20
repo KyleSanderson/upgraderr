@@ -2,6 +2,12 @@ github.com/antonmedv/expr v1.12.5 h1:Fq4okale9swwL3OeLLs9WD9H6GbgBLJyN/NUHRv+n0E
 github.com/antonmedv/expr v1.12.5/go.mod h1:FPC8iWArxls7axbVLsW+kpg1mz29A1b2M6jt+hZfDkU=
 github.com/autobrr/go-qbittorrent v1.3.3-0.20230620031034-f9978be1e0e1 h1:fvLzK9F2GtjlKAkpc1IRYpNvV5oBSN2gmMzbGo4EwIc=
 github.com/autobrr/go-qbittorrent v1.3.3-0.20230620031034-f9978be1e0e1/go.mod h1:z88B3+O/1/3doQABErvIOOxE4hjpmIpulu6XzDG/q78=
+github.com/autobrr/go-qbittorrent v1.3.3-0.20230620140235-a74cb1daf555 h1:R8s0oaysUBmHiFbHk2wnD2QWeJpH7l9T+VlV4C5MdGo=
+github.com/autobrr/go-qbittorrent v1.3.3-0.20230620140235-a74cb1daf555/go.mod h1:z88B3+O/1/3doQABErvIOOxE4hjpmIpulu6XzDG/q78=
+github.com/autobrr/go-qbittorrent v1.3.3-0.20230620140608-055dcd0ac421 h1:XoXQtxeH2YoQDC8oNDH89lVjHEFDqEEHOvGTeQFlVm0=
+github.com/autobrr/go-qbittorrent v1.3.3-0.20230620140608-055dcd0ac421/go.mod h1:z88B3+O/1/3doQABErvIOOxE4hjpmIpulu6XzDG/q78=
+github.com/autobrr/go-qbittorrent v1.3.3-0.20230620140735-a0d91c6a35ff h1:vOmfN+woTaEReAHlz7SmjUyKj1S1Wi4QkjDQwwU3aBc=
+github.com/autobrr/go-qbittorrent v1.3.3-0.20230620140735-a0d91c6a35ff/go.mod h1:z88B3+O/1/3doQABErvIOOxE4hjpmIpulu6XzDG/q78=
 github.com/avast/retry-go v3.0.0+incompatible h1:4SOWQ7Qs+oroOTQOYnAHqelpCO0biHSxpiH9JdtuBj0=
 github.com/avast/retry-go v3.0.0+incompatible/go.mod h1:XtSnn+n/sHqQIpZ10K1qAevBhOOCWBLXXy3hyiqqBrY=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

@@ -4,7 +4,7 @@ module upgraderr
 
 require (
 	github.com/antonmedv/expr v1.12.5
-	github.com/autobrr/go-qbittorrent v1.3.3-0.20230620031034-f9978be1e0e1
+	github.com/autobrr/go-qbittorrent v1.3.3-0.20230620140735-a0d91c6a35ff
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/moistari/rls v0.5.9
