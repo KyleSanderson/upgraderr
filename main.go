@@ -1280,12 +1280,20 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 	}
 
 	prog, err := expr.Compile(strings.Trim(string(req.Torrent), `"`), expr.AsBool(),
-		expr.Env(qbittorrent.Torrent{}), expr.Function(
+		expr.Env(qbittorrent.Torrent{}),
+		expr.Function(
 			"Now",
 			func(params ...any) (any, error) {
 				return time.Now().Unix(), nil
 			},
-		))
+		),
+		expr.Function(
+			"State",
+			func(params ...any) (any, error) {
+				return string(params[0].(qbittorrent.TorrentState)), nil
+			},
+		),
+	)
 
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to compile expression: %q\n", err), 472)
@@ -1310,10 +1318,11 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 			res, err := expr.Run(prog, e.t)
 			if err != nil {
 				fmt.Printf("Error: %q\n", err)
+				filterhash = []string{}
 				break
 			} else if res == false {
 				filterhash = []string{}
-				continue
+				break
 			}
 
 			filterhash = append(filterhash, e.t.Hash)
@@ -1323,8 +1332,12 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, h := range hashes {
-		fmt.Printf("Matched: %q\n", h)
+		req.Hash = h
+		t, _ := req.getTorrent()
+		fmt.Printf("Matched: %q\n", t.Name)
 	}
+
+	//req.Client.DeleteTorrents(hashes, false)
 
 	fmt.Printf("Hashes: %d\n", len(hashes))
 }
