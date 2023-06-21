@@ -1349,57 +1349,57 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 	switch strings.Trim(strings.ToLower(req.Action), `"' `) {
 	case "delete":
 		if err := req.Client.DeleteTorrents(hashes, false); err != nil {
-			http.Error(w, fmt.Sprintf("Unable to delete torrents: %q\n", mp.err), 419)
+			http.Error(w, fmt.Sprintf("Unable to delete torrents: %q\n", err), 419)
 			return
 		}
 	case "deletedata":
 		if err := req.Client.DeleteTorrents(hashes, true); err != nil {
-			http.Error(w, fmt.Sprintf("Unable to deletedata torrents: %q\n", mp.err), 418)
+			http.Error(w, fmt.Sprintf("Unable to deletedata torrents: %q\n", err), 418)
 			return
 		}
 	case "forcestart":
 		if err := req.Client.SetForceStart(hashes, true); err != nil {
-			http.Error(w, fmt.Sprintf("Unable to forcestart torrents: %q\n", mp.err), 417)
+			http.Error(w, fmt.Sprintf("Unable to forcestart torrents: %q\n", err), 417)
 			return
 		}
 	case "normalstart":
 		if err := req.Client.SetForceStart(hashes, false); err != nil {
-			http.Error(w, fmt.Sprintf("Unable to normalstart torrents: %q\n", mp.err), 416)
+			http.Error(w, fmt.Sprintf("Unable to normalstart torrents: %q\n", err), 416)
 			return
 		}
 	case "start":
 		if err := req.Client.Resume(hashes); err != nil {
-			http.Error(w, fmt.Sprintf("Unable to resume torrents: %q\n", mp.err), 415)
+			http.Error(w, fmt.Sprintf("Unable to resume torrents: %q\n", err), 415)
 			return
 		}
 	case "pause":
 		if err := req.Client.Pause(hashes); err != nil {
-			http.Error(w, fmt.Sprintf("Unable to pause torrents: %q\n", mp.err), 414)
+			http.Error(w, fmt.Sprintf("Unable to pause torrents: %q\n", err), 414)
 			return
 		}
 	case "reannounce":
 		if err := req.Client.ReAnnounceTorrents(hashes); err != nil {
-			http.Error(w, fmt.Sprintf("Unable to reannounce torrents: %q\n", mp.err), 413)
+			http.Error(w, fmt.Sprintf("Unable to reannounce torrents: %q\n", err), 413)
 			return
 		}
 	case "recheck":
 		if err := req.Client.Recheck(hashes); err != nil {
-			http.Error(w, fmt.Sprintf("Unable to recheck torrents: %q\n", mp.err), 412)
+			http.Error(w, fmt.Sprintf("Unable to recheck torrents: %q\n", err), 412)
 			return
 		}
 	case "category":
 		if err := req.Client.SetCategory(hashes, req.Subject); err != nil {
-			http.Error(w, fmt.Sprintf("Unable to category torrents %q: %q\n", req.Subject, mp.err), 411)
+			http.Error(w, fmt.Sprintf("Unable to category torrents %q: %q\n", req.Subject, err), 411)
 			return
 		}
 	case "tagadd":
 		if err := req.Client.AddTags(hashes, req.Subject); err != nil {
-			http.Error(w, fmt.Sprintf("Unable to addtag torrents %q: %q\n", req.Subject, mp.err), 410)
+			http.Error(w, fmt.Sprintf("Unable to addtag torrents %q: %q\n", req.Subject, err), 410)
 			return
 		}
 	case "tagdel":
 		if err := req.Client.RemoveTags(hashes, req.Subject); err != nil {
-			http.Error(w, fmt.Sprintf("Unable to tagdel torrents %q: %q\n", req.Subject, mp.err), 409)
+			http.Error(w, fmt.Sprintf("Unable to tagdel torrents %q: %q\n", req.Subject, err), 409)
 			return
 		}
 	default:
