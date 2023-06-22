@@ -1411,6 +1411,5 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("TEST count: %d\n", len(hashes))
 	}
 
-	fmt.Printf("Hashes: %d\n", len(hashes))
 	http.Error(w, fmt.Sprintf("Processed: %d\n", len(hashes)), 200)
 }
