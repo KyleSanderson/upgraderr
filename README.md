@@ -80,6 +80,25 @@ http://upgraderr.upgraderr:6940/api/expression
  }
 ```
 
+```
+{ "host":"http://qbittorrent.cat:8080",
+  "user":"zees",
+  "password":"bsmom",
+  "action":"reannounce",
+  "query":"DisableCrossseed() && State(State) in ['stalledDL', 'forcedDL', 'downloading'] && NumLeechs + NumSeeds < 3"
+ }
+```
+
+```
+{ "host":"http://qbittorrent.cat:8080",
+  "user":"zees",
+  "password":"bsmom",
+  "action":"tagadd",
+  "subject":"dageraad",
+  "query":"DisableCrossseed() && State(State) == 'downloading' && Tags not contains 'forkedRiver' && NumLeechs + NumSeeds > 7"
+ }
+```
+
 * Possible returns
   * 200 ok
 * Error returns
