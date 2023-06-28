@@ -109,7 +109,7 @@ http://upgraderr.upgraderr:6940/api/expression
   * https://github.com/autobrr/go-qbittorrent/blob/f9978be1e0e1e8db4b576b27ecae110b1b37d5fc/domain.go#L7
 * Actions available
   * delete, deletedata, forcestart, normalstart, start, pause, reannounce, recheck, test (default)
-* Subjects available for Actions
+* Actions with Subjects
   * category, tagadd, tagdel
 * Custom script functions
   * Now()
