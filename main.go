@@ -1286,6 +1286,7 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	bCrossAware := true
 	prog, err := expr.Compile(req.Query, expr.AsBool(),
 		expr.Env(qbittorrent.Torrent{}),
 		expr.Function(
@@ -1293,12 +1294,22 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 			func(params ...any) (any, error) {
 				return time.Now().Unix(), nil
 			},
+			new(func() int64),
 		),
 		expr.Function(
 			"State",
 			func(params ...any) (any, error) {
 				return string(params[0].(qbittorrent.TorrentState)), nil
 			},
+			new(func(qbittorrent.TorrentState) string),
+		),
+		expr.Function(
+			"DisableCrossseed",
+			func(params ...any) (any, error) {
+				bCrossAware = false
+				return true, nil
+			},
+			new(func() bool),
 		),
 	)
 
@@ -1330,14 +1341,19 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 	for _, te := range mp.e {
 		filterhash := make([]string, 0, len(te))
 		for _, e := range te {
+			bCrossAware = true
 			res, err := expr.Run(prog, e.t)
 			if err != nil {
 				fmt.Printf("Error: %q\n", err)
 				filterhash = []string{}
 				break
 			} else if res == false {
-				filterhash = []string{}
-				break
+				if bCrossAware {
+					filterhash = []string{}
+					break
+				}
+
+				continue
 			}
 
 			filterhash = append(filterhash, e.t.Hash)
