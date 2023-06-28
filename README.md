@@ -90,3 +90,12 @@ http://upgraderr.upgraderr:6940/api/expression
   * https://github.com/autobrr/go-qbittorrent/blob/f9978be1e0e1e8db4b576b27ecae110b1b37d5fc/domain.go#L7
 * Actions available
   * delete, deletedata, forcestart, normalstart, start, pause, reannounce, recheck, test (default)
+* Custom script functions
+  * Now()
+      - Unix timestamp
+  * State(State)
+      - Converts the torrent state to a string
+  *  DisableCrossseed()
+      - Naive matching
+ 
+<!-- end of the list -->
