@@ -41,6 +41,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/moistari/rls"
 	"github.com/pkg/errors"
+	du "github.com/ricochet2200/go-disk-usage/du"
 )
 
 type Entry struct {
@@ -1310,6 +1311,34 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 				return true, nil
 			},
 			new(func() bool),
+		),
+		expr.Function(
+			"SpaceAvailable",
+			func(params ...any) (any, error) {
+				return du.NewDiskUsage(params[0].(string)).Available(), nil
+			},
+			new(func(string) uint64),
+		),
+		expr.Function(
+			"SpaceFree",
+			func(params ...any) (any, error) {
+				return du.NewDiskUsage(params[0].(string)).Free(), nil
+			},
+			new(func(string) uint64),
+		),
+		expr.Function(
+			"SpaceTotal",
+			func(params ...any) (any, error) {
+				return du.NewDiskUsage(params[0].(string)).Size(), nil
+			},
+			new(func(string) uint64),
+		),
+		expr.Function(
+			"SpaceUsed",
+			func(params ...any) (any, error) {
+				return du.NewDiskUsage(params[0].(string)).Usage(), nil
+			},
+			new(func(string) uint64),
 		),
 	)
 
