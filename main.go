@@ -1288,6 +1288,7 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 	}
 
 	bCrossAware := true
+	resultLimit := -1
 	prog, err := expr.Compile(req.Query, expr.AsBool(),
 		expr.Env(qbittorrent.Torrent{}),
 		expr.Function(
@@ -1311,6 +1312,14 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 				return true, nil
 			},
 			new(func() bool),
+		),
+		expr.Function(
+			"ResultLimit",
+			func(params ...any) (any, error) {
+				resultLimit = params[0].(int)
+				return true, nil
+			},
+			new(func(int) bool),
 		),
 		expr.Function(
 			"SpaceAvailable",
@@ -1389,6 +1398,10 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 		}
 
 		hashes = append(hashes, filterhash...)
+	}
+
+	if resultLimit != -1 && len(hashes) > resultLimit {
+		hashes = hashes[:resultLimit]
 	}
 
 	switch strings.Trim(strings.ToLower(req.Action), `"' `) {
