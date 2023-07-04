@@ -118,5 +118,7 @@ http://upgraderr.upgraderr:6940/api/expression
       - Converts the torrent state to a string
   *  DisableCrossseed()
       - Naive matching
+  * SpaceAvailable('/my/path'), SpaceFree('/my/path'), SpaceTotal('/my/path'), SpaceUsed('/my/path')
+      - Returns bytes from each respective function
  
 <!-- end of the list -->
