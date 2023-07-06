@@ -10,7 +10,6 @@ builds:
       - linux
       - windows
       - darwin
-      - freebsd
     goarch:
       - amd64
       - arm
@@ -24,10 +23,6 @@ builds:
         goarch: arm64
       - goos: darwin
         goarch: arm
-      - goos: freebsd
-        goarch: arm
-      - goos: freebsd
-        goarch: arm64
     main: ./main.go
     binary: upgraderr
 
