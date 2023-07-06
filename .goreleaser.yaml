@@ -24,6 +24,8 @@ builds:
         goarch: arm64
       - goos: darwin
         goarch: arm
+      - goos: freebsd
+        goarch: arm
     main: ./main.go
     binary: upgraderr
 
