@@ -1289,6 +1289,8 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 
 	bCrossAware := true
 	resultLimit := -1
+	var queryRls *rls.Release
+
 	prog, err := expr.Compile(req.Query, expr.AsBool(),
 		expr.Env(qbittorrent.Torrent{}),
 		expr.Function(
@@ -1349,6 +1351,24 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 			},
 			new(func(string) uint64),
 		),
+		expr.Function(
+			"TitleParse",
+			func(params ...any) (any, error) {
+				return rls.ParseString(params[0].(string)), nil
+			},
+			new(func(string) rls.Release),
+		),
+		expr.Function(
+			"TitleParsed",
+			func(params ...any) (any, error) {
+				if queryRls != nil {
+					return *queryRls, nil
+				}
+
+				return rls.Release{}, nil
+			},
+			new(func() rls.Release),
+		),
 	)
 
 	if err != nil {
@@ -1380,6 +1400,7 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 		filterhash := make([]string, 0, len(te))
 		for _, e := range te {
 			bCrossAware = true
+			queryRls = &e.r
 			res, err := expr.Run(prog, e.t)
 			if err != nil {
 				fmt.Printf("Error: %q\n", err)
