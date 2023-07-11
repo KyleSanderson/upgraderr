@@ -116,11 +116,15 @@ http://upgraderr.upgraderr:6940/api/expression
       - Unix timestamp
   * State(State)
       - Converts the torrent state to a string
-  *  DisableCrossseed()
+  * DisableCrossseed()
       - Naive matching
   * ResultLimit(int)
       - Limits results to process after the classification stage.
   * SpaceAvailable('/my/path'), SpaceFree('/my/path'), SpaceTotal('/my/path'), SpaceUsed('/my/path')
       - Returns bytes from each respective function
+  * TitleParse(string)
+      - Parses a title, to return fields found in [moistari/rls](https://github.com/moistari/rls/blob/v0.5.9/rls.go#L22)
+  * TitleParsed()
+      - Parses the present title, to return fields found in [moistari/rls](https://github.com/moistari/rls/blob/v0.5.9/rls.go#L22)
  
 <!-- end of the list -->
