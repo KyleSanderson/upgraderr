@@ -28,6 +28,7 @@ import (
 	"net/http/httputil"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -1473,21 +1474,10 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 
 	keys := make([]int64, 0, len(hashmap))
 	for k := range hashmap {
-		var idx int
-		var v int64
-		for idx, v = range keys {
-			if k > v {
-				break
-			}
-		}
-
-		if len(keys) == idx {
-			keys = append(keys, k)
-		} else {
-			keys = append(keys[:idx+1], keys[idx:]...)
-			keys[idx] = k
-		}
+		keys = append(keys, k)
 	}
+
+	sort.SliceStable(keys, func(i, j int) bool { return keys[j] < keys[i] })
 
 	hashes := make([]string, 0)
 	for _, k := range keys {
