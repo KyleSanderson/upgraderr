@@ -76,7 +76,7 @@ http://upgraderr.upgraderr:6940/api/expression
   "user":"zees",
   "password":"bsmom",
   "action":"start",
-  "query":"LastActivity != 0 && State(State) == 'stalledUP' && Now() - LastActivity > 800 && ((SeedingTime > 7776 && (NumComplete > 12 || NumIncomplete > 9)) || (SeedingTime > 10368 && (NumComplete > 8 || NumIncomplete > 6)))"
+  "query":"LastActivity != 0 && State(State) == 'stalledUP' && Now() - LastActivity > 800 && ((SeedingTime > 7776 && (NumComplete > 12 || NumIncomplete > 9)) || (SeedingTime > 10368 && (NumComplete + NumIncomplete >  8)))"
  }
 ```
 
@@ -85,7 +85,16 @@ http://upgraderr.upgraderr:6940/api/expression
   "user":"zees",
   "password":"bsmom",
   "action":"reannounce",
-  "query":"DisableCrossseed() && State(State) in ['stalledDL', 'forcedDL', 'downloading'] && NumLeechs + NumSeeds < 3"
+  "query":"DisableCrossseed() && State(State) in ['stalledDL', 'forcedDL', 'downloading'] && NumLeechs + NumSeeds < 3",
+ }
+```
+
+```
+{ "host":"http://qbittorrent.cat:8080",
+  "user":"zees",
+  "password":"bsmom",
+  "query":"LastActivity > 604800 && ResultSkip(4000) && ResultLimit(10) && State(State) in ['stalledUP'] && NumLeechs + NumSeeds > 3 && SpaceAvailable('/') < 1024*1024*1024*200",
+  "sort":"-CompletionOn"
  }
 ```
 
@@ -111,6 +120,8 @@ http://upgraderr.upgraderr:6940/api/expression
   * delete, deletedata, forcestart, normalstart, start, pause, reannounce, recheck, test (default)
 * Actions with Subjects
   * category, tagadd, tagdel
+* Sort
+  * Higher values come first
 * Custom script functions
   * Now()
       - Unix timestamp
@@ -119,7 +130,9 @@ http://upgraderr.upgraderr:6940/api/expression
   * DisableCrossseed()
       - Naive matching
   * ResultLimit(int)
-      - Limits results to process after the classification stage.
+      - Limits results to process after the classification and (optional) ResultSkip stage
+  * ResultSkip(int)
+      - Skips a defined number of results, leaving the remainder to be processed after the classification stage
   * SpaceAvailable('/my/path'), SpaceFree('/my/path'), SpaceTotal('/my/path'), SpaceUsed('/my/path')
       - Returns bytes from each respective function
   * TitleParse(string)
