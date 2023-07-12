@@ -35,6 +35,7 @@ import (
 	"unicode"
 
 	"github.com/antonmedv/expr"
+	"github.com/antonmedv/expr/vm"
 	"github.com/autobrr/go-qbittorrent"
 	"github.com/avast/retry-go"
 	"github.com/go-chi/chi/v5"
@@ -1277,6 +1278,7 @@ type upgraderrExpression struct {
 	Query   string
 	Action  string
 	Subject string
+	Sort    string
 	upgradereq
 }
 
@@ -1289,10 +1291,10 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 
 	bCrossAware := true
 	resultLimit := -1
+	resultSkip := -1
 	var queryRls *rls.Release
 
-	prog, err := expr.Compile(req.Query, expr.AsBool(),
-		expr.Env(qbittorrent.Torrent{}),
+	environment := []expr.Option{expr.Env(qbittorrent.Torrent{}),
 		expr.Function(
 			"Now",
 			func(params ...any) (any, error) {
@@ -1319,6 +1321,14 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 			"ResultLimit",
 			func(params ...any) (any, error) {
 				resultLimit = params[0].(int)
+				return true, nil
+			},
+			new(func(int) bool),
+		),
+		expr.Function(
+			"ResultSkip",
+			func(params ...any) (any, error) {
+				resultSkip = params[0].(int)
 				return true, nil
 			},
 			new(func(int) bool),
@@ -1369,11 +1379,21 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 			},
 			new(func() rls.Release),
 		),
-	)
+	}
 
+	queryp, err := expr.Compile(req.Query, append(environment, expr.AsBool())...)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to compile expression: %q\n", err), 472)
+		http.Error(w, fmt.Sprintf("Failed to compile query: %q\n", err), 472)
 		return
+	}
+
+	var sortp *vm.Program
+	if len(req.Sort) != 0 {
+		sortp, err = expr.Compile(req.Sort, append(environment, expr.AsInt64())...)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to compile sort: %q\n", err), 473)
+			return
+		}
 	}
 
 	tmp := upgradereq{
@@ -1395,33 +1415,84 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hashes := make([]string, 0)
+	hashmap := make(map[int64][]string)
 	for _, te := range mp.e {
 		filterhash := make([]string, 0, len(te))
+		priority := int64(-int64(^uint64(0)>>1) - 1)
 		for _, e := range te {
 			bCrossAware = true
 			queryRls = &e.r
-			res, err := expr.Run(prog, e.t)
+			res, err := expr.Run(queryp, e.t)
 			if err != nil {
-				fmt.Printf("Error: %q\n", err)
-				filterhash = []string{}
+				fmt.Printf("Query Error: %q\n", err)
+				filterhash = nil
 				break
 			} else if res == false {
 				if bCrossAware {
-					filterhash = []string{}
+					filterhash = nil
 					break
 				}
 
 				continue
 			}
 
+			if sortp != nil {
+				sortprio, err := expr.Run(sortp, e.t)
+				if err != nil {
+					fmt.Printf("Sort Error: %q\n", err)
+					filterhash = nil
+					break
+				}
+
+				if sortprio.(int64) > priority {
+					priority = sortprio.(int64)
+				}
+			}
+
 			filterhash = append(filterhash, e.t.Hash)
 		}
 
-		hashes = append(hashes, filterhash...)
+		if len(filterhash) == 0 {
+			continue
+		} else if _, ok := hashmap[priority]; ok {
+			hashmap[priority] = append(hashmap[priority], filterhash...)
+		} else {
+			hashmap[priority] = filterhash
+		}
 	}
 
-	if resultLimit != -1 && len(hashes) > resultLimit {
+	keys := make([]int64, 0, len(hashmap))
+	for k := range hashmap {
+		var idx int
+		var v int64
+		for idx, v = range keys {
+			if k > v {
+				break
+			}
+		}
+
+		if len(keys) == idx {
+			keys = append(keys, k)
+		} else {
+			keys = append(keys[:idx+1], keys[idx:]...)
+			keys[idx] = k
+		}
+	}
+
+	hashes := make([]string, 0)
+	for _, k := range keys {
+		hashes = append(hashes, hashmap[k]...)
+	}
+
+	if resultSkip > -1 {
+		if len(hashes) > resultSkip {
+			hashes = hashes[resultSkip:]
+		} else {
+			hashes = nil
+		}
+	}
+
+	if resultLimit > -1 && len(hashes) > resultLimit {
 		hashes = hashes[:resultLimit]
 	}
 
