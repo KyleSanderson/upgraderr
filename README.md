@@ -127,10 +127,16 @@ http://upgraderr.upgraderr:6940/api/expression
       - Unix timestamp
   * State(State)
       - Converts the torrent state to a string
+  * ContextGet()
+      - Retrieve a persisted string across a single run
+  * ContextSet(string)
+      - Set a persisted string across a single run
   * DisableCrossseed()
       - Naive matching
   * ResultLimit(int)
       - Limits results to process after the classification and (optional) ResultSkip stage
+  * ResultMinimumCount(int)
+      - Minimum amount of results to proceed with, after the classification stage, but before limit and skip
   * ResultSkip(int)
       - Skips a defined number of results, leaving the remainder to be processed after the classification stage
   * SpaceAvailable('/my/path'), SpaceFree('/my/path'), SpaceTotal('/my/path'), SpaceUsed('/my/path')
