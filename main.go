@@ -1437,6 +1437,10 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if sortp != nil {
+				if !bCrossAware {
+					priority = int64(-int64(^uint64(0)>>1) - 1)
+				}
+
 				sortprio, err := expr.Run(sortp, e.t)
 				if err != nil {
 					fmt.Printf("Sort Error: %q\n", err)
@@ -1449,7 +1453,13 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			filterhash = append(filterhash, e.t.Hash)
+			if bCrossAware {
+				filterhash = append(filterhash, e.t.Hash)
+			} else if _, ok := hashmap[priority]; ok {
+				hashmap[priority] = append(hashmap[priority], e.t.Hash)
+			} else {
+				hashmap[priority] = []string{e.t.Hash}
+			}
 		}
 
 		if len(filterhash) == 0 {
