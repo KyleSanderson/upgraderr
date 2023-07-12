@@ -1293,6 +1293,8 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 	bCrossAware := true
 	resultLimit := -1
 	resultSkip := -1
+	resultMinimumCount := -1
+	var contextString string
 	var queryRls *rls.Release
 
 	environment := []expr.Option{expr.Env(qbittorrent.Torrent{}),
@@ -1311,6 +1313,21 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 			new(func(qbittorrent.TorrentState) string),
 		),
 		expr.Function(
+			"ContextGet",
+			func(params ...any) (any, error) {
+				return contextString, nil
+			},
+			new(func() string),
+		),
+		expr.Function(
+			"ContextSet",
+			func(params ...any) (any, error) {
+				contextString = params[0].(string)
+				return contextString, nil
+			},
+			new(func(string) string),
+		),
+		expr.Function(
 			"DisableCrossseed",
 			func(params ...any) (any, error) {
 				bCrossAware = false
@@ -1322,6 +1339,14 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 			"ResultLimit",
 			func(params ...any) (any, error) {
 				resultLimit = params[0].(int)
+				return true, nil
+			},
+			new(func(int) bool),
+		),
+		expr.Function(
+			"ResultMinimumCount",
+			func(params ...any) (any, error) {
+				resultMinimumCount = params[0].(int)
 				return true, nil
 			},
 			new(func(int) bool),
@@ -1482,6 +1507,10 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 	hashes := make([]string, 0)
 	for _, k := range keys {
 		hashes = append(hashes, hashmap[k]...)
+	}
+
+	if resultMinimumCount > -1 && len(hashes) < resultMinimumCount {
+		hashes = nil
 	}
 
 	if resultSkip > -1 {
