@@ -85,7 +85,7 @@ http://upgraderr.upgraderr:6940/api/expression
   "user":"zees",
   "password":"bsmom",
   "action":"reannounce",
-  "query":"DisableCrossseed() && State(State) in ['stalledDL', 'forcedDL', 'downloading'] && NumLeechs + NumSeeds < 3",
+  "query":"DisableCrossseed() && State(State) in ['stalledDL', 'forcedDL', 'downloading'] && NumLeechs + NumSeeds < 3"
  }
 ```
 
