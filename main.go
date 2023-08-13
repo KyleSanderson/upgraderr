@@ -317,7 +317,13 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requestrls := Entry{r: rls.ParseString(req.Name)}
+	var requestrls Entry
+	if rm, ok := mp.d[req.Name]; ok {
+		requestrls.r = rm
+	} else {
+		requestrls.r = rls.ParseString(req.Name)
+	}
+
 	if v, ok := mp.e[getFormattedTitle(requestrls.r)]; ok {
 		code := 0
 		var parent Entry
@@ -1297,6 +1303,7 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 	resultMinimumCount := -1
 	var contextString string
 	var queryRls *rls.Release
+	var mp timeentry
 
 	environment := []expr.Option{expr.Env(qbittorrent.Torrent{}),
 		expr.Function(
@@ -1391,6 +1398,10 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 		expr.Function(
 			"TitleParse",
 			func(params ...any) (any, error) {
+				if rm, ok := mp.d[params[0].(string)]; ok {
+					return rm, nil
+				}
+
 				return rls.ParseString(params[0].(string)), nil
 			},
 			new(func(string) rls.Release),
@@ -1436,7 +1447,7 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 
 	req.Client = tmp.Client
 
-	mp := req.getAllTorrents()
+	mp = req.getAllTorrents()
 	if mp.err != nil {
 		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 468)
 		return
