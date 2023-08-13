@@ -54,10 +54,11 @@ type Entry struct {
 type upgradereq struct {
 	Name string
 
-	User     string
-	Password string
-	Host     string
-	Port     uint
+	User        string
+	Password    string
+	Host        string
+	Port        uint
+	CacheBypass uint
 
 	Hash    string
 	Torrent json.RawMessage
@@ -148,7 +149,7 @@ func (c *upgradereq) getAllTorrents() timeentry {
 
 	res := f()
 	cur := time.Now()
-	if res.t.After(cur) {
+	if c.CacheBypass == 0 && res.t.After(cur) {
 		return *res
 	}
 
@@ -156,7 +157,7 @@ func (c *upgradereq) getAllTorrents() timeentry {
 	defer res.Unlock()
 
 	res = f()
-	if res.t.After(cur) {
+	if c.CacheBypass == 0 && res.t.After(cur) {
 		return *res
 	}
 
