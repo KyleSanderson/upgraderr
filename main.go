@@ -41,6 +41,7 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/kylesanderson/go-jackett"
 	"github.com/moistari/rls"
 	"github.com/pkg/errors"
 	du "github.com/ricochet2200/go-disk-usage/du"
@@ -96,6 +97,7 @@ func main() {
 	r.Post("/api/unregistered", handleUnregistered)
 	r.Post("/api/expression", handleExpression)
 	r.Post("/api/autobrr/filterupdate", handleAutobrrFilterUpdate)
+	r.Post("/api/jackett/searchtrigger", handleTorznabCrossSearch)
 	http.ListenAndServe(":6940", r) /* immutable. this is b's favourite positive 4digit number not starting with a 0. */
 }
 
@@ -1603,4 +1605,150 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Error(w, fmt.Sprintf("Processed: %d\n", len(hashes)), 200)
+}
+
+type torznabCrossSearch struct {
+	APIKey      string
+	JackettHost string
+	AgeLimit    uint
+	upgradereq
+}
+
+func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
+	var req torznabCrossSearch
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), 470)
+		return
+	}
+
+	if len(req.JackettHost) == 0 {
+		http.Error(w, fmt.Sprintf("Missing Jackett Host"), 473)
+		return
+	}
+
+	jc := jackett.NewClient(jackett.Config{Host: req.JackettHost, APIKey: req.APIKey, Timeout: 180})
+	indexers, err := jc.GetIndexers()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get indexers from Jackett: %q\n", err), 472)
+		return
+	}
+
+	tmp := upgradereq{
+		Host:     req.Host,
+		User:     req.User,
+		Password: req.Password,
+	}
+
+	if err := getClient(&tmp); err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get client: %q\n", err), 471)
+		return
+	}
+
+	req.Client = tmp.Client
+	mp := req.getAllTorrents()
+	if mp.err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 468)
+		return
+	}
+
+	processlist := make(map[string]string)
+
+	regexseason := regexp.MustCompile("(S\\d+)")
+	nt := time.Now().Unix()
+	for _, e := range mp.e {
+		for _, torrent := range e {
+			if req.AgeLimit != 0 && nt-int64(req.AgeLimit) > torrent.t.CompletionOn {
+				continue
+			}
+
+			r, ok := mp.d[torrent.t.Name]
+			if !ok {
+				r = rls.ParseString(torrent.t.Name)
+				mp.d[torrent.t.Name] = r
+			}
+
+			q := strings.ToLower(r.Title)
+			y := ""
+			if r.Year != 0 {
+				y = fmt.Sprintf("%d", r.Year)
+			}
+
+			s := ""
+			if r.Series != 0 || r.Episode != 0 {
+				if regexseason.MatchString(torrent.t.Name) {
+					s = fmt.Sprintf("S%02d", r.Series)
+					if r.Episode != 0 {
+						s += fmt.Sprintf("E%02d", r.Episode)
+					}
+				} else if strings.Contains(strings.ToLower(torrent.t.Name), "season") {
+					s = fmt.Sprintf("season %d", r.Series)
+				}
+			} else if r.Month != 0 {
+				s = fmt.Sprintf("%02d", r.Month)
+			}
+
+			if len(y) != 0 {
+				q += " " + y
+			}
+			if len(s) != 0 {
+				q += " " + s
+			}
+
+			processlist[q] = torrent.t.Name
+		}
+	}
+
+	regexadult := regexp.MustCompile("(XXX)")
+	for k, v := range processlist {
+		r := mp.d[v]
+		adult := regexadult.MatchString(v)
+		cat := ""
+		for _, indexer := range indexers.Indexer {
+			if adult {
+				for _, cl := range indexer.Caps.Categories.Category {
+					id, _ := strconv.Atoi(cl.ID)
+					if id >= 6000 && id <= 6999 {
+						cat = "6000"
+						break
+					}
+				}
+
+				if len(cat) == 0 {
+					continue
+				}
+			} else if r.Type == rls.Episode || r.Type == rls.Series {
+				if indexer.Caps.Searching.TvSearch.Available != "yes" {
+					continue
+				}
+				cat = "5000"
+			} else if r.Type == rls.Movie {
+				if indexer.Caps.Searching.MovieSearch.Available != "yes" {
+					continue
+				}
+				cat = "2000"
+			} else if r.Type == rls.Music || r.Type == rls.Audiobook {
+				if indexer.Caps.Searching.MusicSearch.Available != "yes" && indexer.Caps.Searching.AudioSearch.Available != "yes" {
+					continue
+				}
+				cat = "3000"
+			} else if r.Type == rls.Book || r.Type == rls.Comic || r.Type == rls.Education || r.Type == rls.Magazine {
+				if indexer.Caps.Searching.BookSearch.Available != "yes" {
+					continue
+				}
+				cat = "7000"
+			}
+
+			res, err := jc.GetTorrents(indexer.ID, map[string]string{"q": k, "cat": cat})
+			if err != nil {
+				fmt.Printf("Fatal acquisition: %q\n", err)
+				continue
+			}
+
+			for _, ch := range res.Channel.Item {
+				fmt.Printf("%q | %q\n", ch.Title, ch.Guid)
+			}
+		}
+	}
+
+	http.Error(w, fmt.Sprintf("Processed: %d\n", len(processlist)), 200)
 }
