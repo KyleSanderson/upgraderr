@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -45,6 +46,7 @@ import (
 	"github.com/moistari/rls"
 	"github.com/pkg/errors"
 	du "github.com/ricochet2200/go-disk-usage/du"
+	bolt "go.etcd.io/bbolt"
 )
 
 type Entry struct {
@@ -74,10 +76,13 @@ type timeentry struct {
 	sync.Mutex
 }
 
+var db *bolt.DB
 var clientmap sync.Map
 var torrentmap sync.Map
 
 func main() {
+	initDatabase()
+
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -1607,6 +1612,44 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, fmt.Sprintf("Processed: %d\n", len(hashes)), 200)
 }
 
+func initDatabase() {
+	var err error
+	db, err = bolt.Open("/config/upgraderr.db", 0600, nil)
+	if err != nil {
+		fmt.Printf("WARNING: Unable to open Torznab database on /config. %q\n", err)
+		db, err = bolt.Open("upgraderr.db", 0600, nil)
+		if err != nil {
+			db, err = bolt.Open("/tmp/upgraderr.db", 0600, nil)
+			if err != nil {
+				fmt.Printf("WARNING: Unable to open Torznab database /tmp. %q\n", err)
+			}
+		}
+	}
+
+	if db == nil {
+		return
+	}
+
+	if err := db.Update(func(tx *bolt.Tx) error {
+		if _, err := tx.CreateBucketIfNotExists([]byte("enclosures")); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucketIfNotExists([]byte("titles")); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucketIfNotExists([]byte("torrents")); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucketIfNotExists([]byte("queries")); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		fmt.Printf("Unable to create bucket: %q\n", err)
+	}
+}
+
 type torznabCrossSearch struct {
 	APIKey      string
 	JackettHost string
@@ -1615,6 +1658,11 @@ type torznabCrossSearch struct {
 }
 
 func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
+	if db == nil {
+		http.Error(w, fmt.Sprintf("You have a configuration error, unable to create a database on the filesystem"), 480)
+		return
+	}
+
 	var req torznabCrossSearch
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), 470)
@@ -1652,7 +1700,6 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	processlist := make(map[string]string)
-
 	regexseason := regexp.MustCompile("(S\\d+)")
 	nt := time.Now().Unix()
 	for _, e := range mp.e {
@@ -1699,11 +1746,38 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	regexadult := regexp.MustCompile("(XXX)")
+	failmap := make(map[string]uint)
+	var faillock sync.RWMutex
+	var wg sync.WaitGroup
 	for k, v := range processlist {
+		fmt.Printf("Searching: %q\n", v)
 		r := mp.d[v]
 		adult := regexadult.MatchString(v)
-		cat := ""
 		for _, indexer := range indexers.Indexer {
+			faillock.RLock()
+			if num := failmap[indexer.ID]; num > 3 {
+				faillock.RUnlock()
+				continue
+			}
+			faillock.RUnlock()
+
+			if err := db.Update(func(tx *bolt.Tx) error {
+				for _, bucket := range []*bolt.Bucket{
+					tx.Bucket([]byte("enclosures")),
+					tx.Bucket([]byte("titles")),
+					tx.Bucket([]byte("torrents")),
+					tx.Bucket([]byte("queries"))} {
+					if _, err := bucket.CreateBucketIfNotExists([]byte(indexer.ID)); err != nil {
+						return err
+					}
+				}
+
+				return nil
+			}); err != nil {
+				fmt.Printf("%q: Failed to create initial indexer buckets: %q\n", indexer.ID, err)
+			}
+
+			cat := ""
 			if adult {
 				for _, cl := range indexer.Caps.Categories.Category {
 					id, _ := strconv.Atoi(cl.ID)
@@ -1738,16 +1812,175 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 				cat = "7000"
 			}
 
-			res, err := jc.GetTorrents(indexer.ID, map[string]string{"q": k, "cat": cat})
-			if err != nil {
-				fmt.Printf("Fatal acquisition: %q\n", err)
-				continue
-			}
+			wg.Add(1)
+			go func(id string, m map[string]string) {
+				defer wg.Done()
 
-			for _, ch := range res.Channel.Item {
-				fmt.Printf("%q | %q\n", ch.Title, ch.Guid)
-			}
+				if err := db.View(func(tx *bolt.Tx) error {
+					pb := tx.Bucket([]byte("queries"))
+					if pb == nil {
+						fmt.Printf("No queries bucket %q\n", m["cat"]+m["q"])
+						return nil
+					}
+
+					b := pb.Bucket([]byte(id))
+					if b == nil {
+						return nil
+					}
+
+					stamp := b.Get([]byte(m["cat"] + m["q"]))
+					if stamp == nil {
+						return nil
+					}
+
+					if nt-720 < int64(binary.LittleEndian.Uint64(stamp)) {
+						return fmt.Errorf("cache found for %q", m["cat"]+m["q"])
+					}
+
+					return nil
+				}); err != nil {
+					fmt.Printf("%q: %q Skipping result.\n", id, err)
+					return
+				}
+
+				res, err := jc.GetTorrents(id, m)
+				if err != nil {
+					fmt.Printf("%q: Fatal acquisition: %q\n", id, err)
+					faillock.Lock()
+					i := failmap[id]
+					failmap[id] = (i + 1)
+					faillock.Unlock()
+					return
+				}
+
+				faillock.Lock()
+				failmap[id] = 0
+				faillock.Unlock()
+
+				if err := db.Update(func(tx *bolt.Tx) error {
+					{
+						tb := tx.Bucket([]byte("titles"))
+						if tb == nil {
+							return fmt.Errorf("titles: Failed to find bucket")
+						}
+
+						b := tb.Bucket([]byte(id))
+						if b == nil {
+							return fmt.Errorf("%q: Failed to find title bucket", id)
+						}
+
+						eb := tx.Bucket([]byte("enclosures"))
+						if eb == nil {
+							return fmt.Errorf("enclosures: Failed to find bucket")
+						}
+
+						c := eb.Bucket([]byte(id))
+						if c == nil {
+							return fmt.Errorf("%q: Failed to find enclosure bucket", id)
+						}
+
+						for _, ch := range res.Channel.Item {
+							if err := b.Put([]byte(ch.Title), []byte(ch.Guid)); err != nil {
+								return err
+							}
+
+							if err := c.Put([]byte(ch.Guid), []byte(ch.Enclosure.URL)); err != nil {
+								return err
+							}
+						}
+					}
+					{
+						pb := tx.Bucket([]byte("queries"))
+						if pb == nil {
+							return fmt.Errorf("queries: Failed to find bucket")
+						}
+
+						b := pb.Bucket([]byte(id))
+						if b == nil {
+							return fmt.Errorf("%q: Failed to find queries bucket", id)
+						}
+
+						if err := b.Put([]byte(m["cat"]+m["q"]), binary.LittleEndian.AppendUint64(nil, uint64(nt))); err != nil {
+							return err
+						}
+					}
+
+					return nil
+				}); err != nil {
+					fmt.Printf("%q: Failed to commit database transaction: %q\n", id, err)
+				}
+			}(indexer.ID, map[string]string{"q": k, "cat": cat})
 		}
+
+		wg.Wait()
+		break
+	}
+
+	if err := db.Update(func(tx *bolt.Tx) error {
+		titb := tx.Bucket([]byte("titles"))
+		if titb == nil {
+			return fmt.Errorf("missing parent titles bucket")
+		}
+
+		eb := tx.Bucket([]byte("enclosures"))
+		if eb == nil {
+			return fmt.Errorf("missing parent enclosures bucket")
+		}
+
+		torb := tx.Bucket([]byte("torrents"))
+		if torb == nil {
+			return fmt.Errorf("missing torrents enclosures bucket")
+		}
+
+		drm := mp.d
+		titb.ForEachBucket(func(k []byte) error {
+			ibc := titb.Bucket(k)
+			ebc := eb.Bucket(k)
+			tbc := torb.Bucket(k)
+
+			ibc.ForEach(func(kc, v []byte) error {
+				r, ok := drm[string(kc)]
+				if !ok {
+					r = rls.ParseString(string(kc))
+					drm[string(kc)] = r
+				}
+
+				ent, ok := mp.e[getFormattedTitle(r)]
+				if !ok {
+					return nil
+				}
+
+				for _, e := range ent {
+					if rls.Compare(r, e.r) != 0 {
+						continue
+					}
+
+					torrentbinary := tbc.Get(v)
+					if torrentbinary == nil {
+						enclosure := ebc.Get(v)
+						if enclosure == nil {
+							continue
+						}
+
+						torrentbinary, err = jc.GetEnclosure(string(enclosure))
+						if err != nil {
+							fmt.Printf("%q: error snatching %q: %q\n", k, kc, err)
+							continue
+						}
+
+						tbc.Put(v, torrentbinary)
+					}
+
+					req.Torrent = []byte(base64.RawStdEncoding.EncodeToString(torrentbinary))
+
+				}
+
+				return nil
+			})
+			return nil
+		})
+		return nil
+	}); err != nil {
 	}
 
 	http.Error(w, fmt.Sprintf("Processed: %d\n", len(processlist)), 200)
