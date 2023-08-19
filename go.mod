@@ -3,7 +3,7 @@ go 1.20
 module upgraderr
 
 require (
-	github.com/antonmedv/expr v1.13.0
+	github.com/antonmedv/expr v1.14.0
 	github.com/autobrr/go-qbittorrent v1.3.3
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/go-chi/chi/v5 v5.0.10
