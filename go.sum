@@ -1,7 +1,7 @@
-github.com/antonmedv/expr v1.15.1 h1:mxeRIkH8GQJo4MRRFgp0ArlV4AA+0DmcJNXEsG70rGU=
-github.com/antonmedv/expr v1.15.1/go.mod h1:0E/6TxnOlRNp81GMzX9QfDPAmHo2Phg00y4JUv1ihsE=
-github.com/autobrr/go-qbittorrent v1.3.3 h1:kc48/hsmDgbrTVtlsNc7qXIQrDCkZ6CdBYQVtprU5l0=
-github.com/autobrr/go-qbittorrent v1.3.3/go.mod h1:z88B3+O/1/3doQABErvIOOxE4hjpmIpulu6XzDG/q78=
+github.com/antonmedv/expr v1.15.3 h1:q3hOJZNvLvhqE8OHBs1cFRdbXFNKuA+bHmRaI+AmRmI=
+github.com/antonmedv/expr v1.15.3/go.mod h1:0E/6TxnOlRNp81GMzX9QfDPAmHo2Phg00y4JUv1ihsE=
+github.com/autobrr/go-qbittorrent v1.5.0 h1:UBl6w/bxxT5v1d9sGKp5Be4js4YNNumXw4hZNXXxPd8=
+github.com/autobrr/go-qbittorrent v1.5.0/go.mod h1:z88B3+O/1/3doQABErvIOOxE4hjpmIpulu6XzDG/q78=
 github.com/avast/retry-go v3.0.0+incompatible h1:4SOWQ7Qs+oroOTQOYnAHqelpCO0biHSxpiH9JdtuBj0=
 github.com/avast/retry-go v3.0.0+incompatible/go.mod h1:XtSnn+n/sHqQIpZ10K1qAevBhOOCWBLXXy3hyiqqBrY=
 github.com/cytec/releaseparser v0.0.0-20200706155913-2341b265c370 h1:g9q5BGfDdhcXn4EmVZD8UydPXrvhSvgz3FRBn7zAJNs=
