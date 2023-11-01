@@ -11,8 +11,8 @@ github.com/go-chi/chi/v5 v5.0.10/go.mod h1:DslCQbL2OYiznFReuXYUmQ2hGd1aDpCnlMNIT
 github.com/google/go-cmp v0.5.9 h1:O2Tfq5qg4qc4AmwVlvv0oLiVAGB7enBSJ2x2DqQFi38=
 github.com/kylesanderson/go-jackett v0.0.0-20230814005711-2f756d567dc1 h1:Ckem/rr4qEvuy250fV3Y+V6dVQMnCXpjjS5QUsKEOIk=
 github.com/kylesanderson/go-jackett v0.0.0-20230814005711-2f756d567dc1/go.mod h1:o805kiTZcYvSoF1ImxwxvU+VOmK/kvRVRLI49VHXORs=
-github.com/moistari/rls v0.5.9 h1:peRGW+1/HJDUZ76s0v2ukcBLCBUs4/Qf3TKOzRjOOco=
-github.com/moistari/rls v0.5.9/go.mod h1:/3P63JjNkaf1MNBoS2tSXqGeqee6l4je+Krakp4ob7c=
+github.com/moistari/rls v0.5.10 h1:e2XDxF0/+Riz9TEiTSewuZ7nuNZKOpbY1V2KSJWA2e4=
+github.com/moistari/rls v0.5.10/go.mod h1:/3P63JjNkaf1MNBoS2tSXqGeqee6l4je+Krakp4ob7c=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
