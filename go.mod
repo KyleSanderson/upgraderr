@@ -3,8 +3,7 @@ go 1.23.2
 module github.com/titlerr/upgraderr
 
 require (
-	github.com/antonmedv/expr v1.15.5
-	github.com/autobrr/autobrr v1.50.0
+	github.com/autobrr/autobrr v1.51.0
 	github.com/autobrr/go-qbittorrent v1.11.1-0.20241125003532-20f6e139b16c
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/expr-lang/expr v1.16.9
@@ -13,7 +12,7 @@ require (
 	github.com/moistari/rls v0.5.12
 	github.com/pkg/errors v0.9.1
 	github.com/ricochet2200/go-disk-usage/du v0.0.0-20210707232629-ac9918953285
-	go.etcd.io/bbolt v1.3.10
+	go.etcd.io/bbolt v1.3.11
 )
 
 require (
