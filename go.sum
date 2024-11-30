@@ -1,7 +1,7 @@
 github.com/Masterminds/semver v1.5.0 h1:H65muMkzWKEuNDnfl9d70GUjFniHKHRbFPGBuZ3QEww=
 github.com/Masterminds/semver v1.5.0/go.mod h1:MB6lktGJrhw8PrUyiEoblNEGEQ+RzHPF078ddwwvV3Y=
-github.com/autobrr/autobrr v1.50.0 h1:JfOaa5UhnxDs/FlTXQklLv0yvjHVXE1EXBNRCX5tT+k=
-github.com/autobrr/autobrr v1.50.0/go.mod h1:Y/fIr6eG1vmEBNyb/euwJJRGPoVHY2XxmPjDAdajZS0=
+github.com/autobrr/autobrr v1.51.1 h1:9swz6DJJUR0QlImCpxwLCZ9T0W/Un7aqJgBJdOfZVlQ=
+github.com/autobrr/autobrr v1.51.1/go.mod h1:g8s3VOgOm5CSFOP32wa4xf4QC/mVvIJA+1QwjRrLWz8=
 github.com/autobrr/go-qbittorrent v1.11.1-0.20241125003532-20f6e139b16c h1:CkPmdHRZSNpBBRzuqSKlr+HeY3oU2/UIfnb+fMTj2lM=
 github.com/autobrr/go-qbittorrent v1.11.1-0.20241125003532-20f6e139b16c/go.mod h1:sIwIdqDcFbN67tSC5p5Lp27M8/BQFoSoW5XqXyVdHF0=
 github.com/avast/retry-go v3.0.0+incompatible h1:4SOWQ7Qs+oroOTQOYnAHqelpCO0biHSxpiH9JdtuBj0=
@@ -28,8 +28,8 @@ github.com/ricochet2200/go-disk-usage/du v0.0.0-20210707232629-ac9918953285 h1:d
 github.com/ricochet2200/go-disk-usage/du v0.0.0-20210707232629-ac9918953285/go.mod h1:fxIDly1xtudczrZeOOlfaUvd2OPb2qZAPuWdU2BsBTk=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
-go.etcd.io/bbolt v1.3.10 h1:+BqfJTcCzTItrop8mq/lbzL8wSGtj94UO/3U31shqG0=
-go.etcd.io/bbolt v1.3.10/go.mod h1:bK3UQLPJZly7IlNmV7uVHJDxfe5aK9Ll93e/74Y9oEQ=
+go.etcd.io/bbolt v1.3.11 h1:yGEzV1wPz2yVCLsD8ZAiGHhHVlczyC9d1rP43/VCRJ0=
+go.etcd.io/bbolt v1.3.11/go.mod h1:dksAq7YMXoljX0xu6VF5DMZGbhYYoLUalEiSySYAS4I=
 golang.org/x/net v0.30.0 h1:AcW1SDZMkb8IpzCdQUaIq2sP4sZ4zw+55h6ynffypl4=
 golang.org/x/net v0.30.0/go.mod h1:2wGyMJ5iFasEhkwi13ChkO/t1ECNC4X4eBKkVFyYFlU=
 golang.org/x/sync v0.8.0 h1:3NFvSEYkUoMifnESzZl15y791HH1qU2xm6eCJU5ZPXQ=
