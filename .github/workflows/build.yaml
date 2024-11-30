@@ -26,7 +26,7 @@ jobs:
         os: [ubuntu-latest]
         cgo: [ 1, 0 ]
     name: Test${{ matrix.cgo == 1 && ' CGO'|| '' }} ${{ matrix.os }}
-    runs-on: ${{ matrix.os }
+    runs-on: ${{ matrix.os }}
     env:
       CGO_ENABLED: ${{ matrix.cgo }}
     steps:
