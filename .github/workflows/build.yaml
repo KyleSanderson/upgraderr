@@ -13,7 +13,6 @@ env:
   REGISTRY: ghcr.io
   REGISTRY_IMAGE: ghcr.io/kylesanderson/upgraderr
   GO_VERSION: '1.23'
-  NODE_VERSION: '20.17.0'
 
 permissions:
   contents: write
@@ -27,17 +26,7 @@ jobs:
         os: [ubuntu-latest]
         cgo: [ 1, 0 ]
     name: Test${{ matrix.cgo == 1 && ' CGO'|| '' }} ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    services:
-      test_postgres:
-        image: postgres:12.10
-        ports:
-          - "5437:5432"
-        env:
-          POSTGRES_USER: testdb
-          POSTGRES_PASSWORD: testdb
-          POSTGRES_DB: autobrr
-        options: --health-cmd pg_isready --health-interval 1s --health-timeout 5s --health-retries 60
+    runs-on: ${{ matrix.os }
     env:
       CGO_ENABLED: ${{ matrix.cgo }}
     steps:
@@ -181,7 +170,7 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean --skip=validate --skip=publish --parallelism 5
+          args: release --clean --skip=validate,publish --parallelism 5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

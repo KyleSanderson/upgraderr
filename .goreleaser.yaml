@@ -15,7 +15,7 @@ builds:
       - arm
       - arm64
     goarm:
-      - 6
+      - "6"
     ignore:
       - goos: windows
         goarch: arm
@@ -46,8 +46,8 @@ release:
     
     ## What to do next?
     
-    - Read the [documentation](https://autobrr.com)
-    - Join our [Discord server](https://discord.gg/WQ2eUycxyT)
+    - Read the [documentation](https://autobrr.com/3rd-party-tools/upgraderr)
+    - Join our [Discord server](https://discord.gg/7xjsuzKk6A)
 
 checksum:
   name_template: '{{ .ProjectName }}_{{ .Version }}_checksums.txt'
