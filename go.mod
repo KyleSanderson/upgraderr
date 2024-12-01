@@ -3,7 +3,7 @@ go 1.23.2
 module github.com/titlerr/upgraderr
 
 require (
-	github.com/autobrr/autobrr v1.51.1
+	github.com/autobrr/autobrr v1.52.0
 	github.com/autobrr/go-qbittorrent v1.11.1-0.20241125063904-b202d4997247
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/expr-lang/expr v1.16.9
