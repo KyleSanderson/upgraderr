@@ -37,6 +37,8 @@ import (
 	"unicode"
 
 	"github.com/autobrr/autobrr/pkg/sharedhttp"
+	"github.com/autobrr/autobrr/pkg/timecache"
+	"github.com/autobrr/autobrr/pkg/ttlcache"
 	"github.com/autobrr/go-qbittorrent"
 	"github.com/avast/retry-go"
 	"github.com/expr-lang/expr"
@@ -47,8 +49,6 @@ import (
 	"github.com/moistari/rls"
 	"github.com/pkg/errors"
 	du "github.com/ricochet2200/go-disk-usage/du"
-	"github.com/titlerr/upgraderr/pkg/timecache"
-	"github.com/titlerr/upgraderr/pkg/ttlcache"
 	bolt "go.etcd.io/bbolt"
 
 	_ "net/http/pprof"
