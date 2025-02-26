@@ -315,7 +315,8 @@ func (c *upgradereq) getTorrent() (qbittorrent.Torrent, error) {
 	for _, v := range t {
 		switch v.State {
 		case qbittorrent.TorrentStateError, qbittorrent.TorrentStateMissingFiles,
-			qbittorrent.TorrentStatePausedDl, qbittorrent.TorrentStatePausedUp,
+			qbittorrent.TorrentStatePausedDl, qbittorrent.TorrentStatePausedUp, // <qb5.0
+			qbittorrent.TorrentStateStoppedDl, qbittorrent.TorrentStateStoppedUp, // +qb5.0 webapi 2.11
 			qbittorrent.TorrentStateCheckingDl, qbittorrent.TorrentStateCheckingUp, qbittorrent.TorrentStateCheckingResumeData:
 			if c.Name == v.Name {
 				c.Hash = v.Hash
@@ -664,12 +665,12 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 			case qbittorrent.TorrentStateMissingFiles:
 				req.recheckTorrent()
 				return errors.New("469 Rechecking")
-			case qbittorrent.TorrentStatePausedUp:
+			case qbittorrent.TorrentStatePausedUp, qbittorrent.TorrentStateStoppedUp:
 				if err := req.resumeTorrent(); err != nil {
 					return errors.Wrap(err, "468 Unable to resume torrent")
 				}
 				return errors.New("467 PausedUp")
-			case qbittorrent.TorrentStatePausedDl:
+			case qbittorrent.TorrentStatePausedDl, qbittorrent.TorrentStateStoppedDl:
 				if t.Progress < 0.8 {
 					return retry.Unrecoverable(errors.New("466 Name matched, data did not on cross"))
 				}
