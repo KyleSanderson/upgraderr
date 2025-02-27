@@ -10,13 +10,12 @@ require (
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/kylesanderson/go-jackett v0.0.0-20240729010859-5f963f0d5ab5
 	github.com/moistari/rls v0.5.12
-	github.com/pkg/errors v0.9.1
-	github.com/ricochet2200/go-disk-usage/du v0.0.0-20210707232629-ac9918953285
 	go.etcd.io/bbolt v1.4.0
 )
 
 require (
 	github.com/Masterminds/semver v1.5.0 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa // indirect
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sync v0.11.0 // indirect
