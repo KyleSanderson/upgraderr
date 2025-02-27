@@ -43,10 +43,9 @@ func HandleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 		Name:     req.Title,
 		Torrent:  req.TorrentData,
 		Host:     req.Host,
-		Port:     req.Port,
-		Username: req.Username,
+		Port:     uint(req.Port),
+		User:     req.Username,
 		Password: req.Password,
-		Type:     req.Type,
 	}
 
 	// Initialize the client

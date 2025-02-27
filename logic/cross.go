@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/autobrr/go-qbittorrent"
+	"github.com/avast/retry-go"
 	"github.com/moistari/rls"
 	"github.com/titlerr/upgraderr/models"
-	"github.com/titlerr/upgraderr/qbittorrent"
-	"github.com/titlerr/upgraderr/retry"
 )
 
 // ProcessCrossSeed handles the core logic of cross-seeding
