@@ -1,10 +1,10 @@
-FROM golang:1.20 as builder
+FROM golang:1.24 as builder
 COPY . /app
 ENV GOOS=linux CGO_ENABLED=0
 WORKDIR /app
 RUN go build && ls -la
 
-FROM alpine:3.16
+FROM alpine:latest
 COPY --from=builder /app/upgraderr /app/
 WORKDIR /app
 CMD /app/upgraderr
