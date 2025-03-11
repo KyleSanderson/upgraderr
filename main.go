@@ -55,22 +55,22 @@ import (
 )
 
 type Entry struct {
-	t qbittorrent.Torrent
 	r *rls.Release
+	t qbittorrent.Torrent
 }
 
 type upgradereq struct {
-	Name string
+	Client *qbittorrent.Client
+	Name   string
 
-	User        string
-	Password    string
-	Host        string
+	User     string
+	Password string
+	Host     string
+
+	Hash        string
+	Torrent     json.RawMessage
 	Port        uint
 	CacheBypass uint
-
-	Hash    string
-	Torrent json.RawMessage
-	Client  *qbittorrent.Client
 }
 
 type timeentry struct {
@@ -1182,10 +1182,10 @@ func Atoi(buf string) (ret int, valid bool, pos string) {
 }
 
 type autobrrFilterUpdate struct {
-	APIKey      string
-	FilterID    int
-	AutobrrHost string
 	upgradereq
+	APIKey      string
+	AutobrrHost string
+	FilterID    int
 }
 
 var saneFilter = regexp.MustCompile(`(\?+\?)`)
@@ -1294,11 +1294,11 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 type upgraderrExpression struct {
+	upgradereq
 	Query   string
 	Action  string
 	Subject string
 	Sort    string
-	upgradereq
 }
 
 /* Replace old functions with builtins */
@@ -1648,10 +1648,10 @@ func initDatabase() {
 }
 
 type torznabCrossSearch struct {
+	upgradereq
 	APIKey      string
 	JackettHost string
 	AgeLimit    uint
-	upgradereq
 }
 
 func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
