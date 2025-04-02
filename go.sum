@@ -1,7 +1,7 @@
 github.com/Masterminds/semver v1.5.0 h1:H65muMkzWKEuNDnfl9d70GUjFniHKHRbFPGBuZ3QEww=
 github.com/Masterminds/semver v1.5.0/go.mod h1:MB6lktGJrhw8PrUyiEoblNEGEQ+RzHPF078ddwwvV3Y=
-github.com/autobrr/autobrr v1.58.0 h1:9u6IS/ju6Tt39hk6JCscBJQMJLxZlOSGmKarrHZmZRc=
-github.com/autobrr/autobrr v1.58.0/go.mod h1:NkV0O6DAey8MBQmfzV7oAwex1gFegApjNpXGK5vTnRk=
+github.com/autobrr/autobrr v1.60.0 h1:YjSBK936P7iC/27K6Lo9lsFG9PVx/OOQzdVcpfUnWkI=
+github.com/autobrr/autobrr v1.60.0/go.mod h1:he8TQ/u05S3rocA2x9uuPbnrlto3QHJqZfUb3rsL0H4=
 github.com/autobrr/go-qbittorrent v1.11.1-0.20241125063904-b202d4997247 h1:en9XcHorwWaayVyNgBwvhrk+TVb4uwSFX7oH2u8zI/c=
 github.com/autobrr/go-qbittorrent v1.11.1-0.20241125063904-b202d4997247/go.mod h1:sIwIdqDcFbN67tSC5p5Lp27M8/BQFoSoW5XqXyVdHF0=
 github.com/avast/retry-go v3.0.0+incompatible h1:4SOWQ7Qs+oroOTQOYnAHqelpCO0biHSxpiH9JdtuBj0=
@@ -10,8 +10,8 @@ github.com/cytec/releaseparser v0.0.0-20200706155913-2341b265c370 h1:g9q5BGfDdhc
 github.com/cytec/releaseparser v0.0.0-20200706155913-2341b265c370/go.mod h1:T6MvuEQy8BSy+4Aol7AjqObp2g3wTv2HjcFrGToHVVE=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/expr-lang/expr v1.16.9 h1:WUAzmR0JNI9JCiF0/ewwHB1gmcGw5wW7nWt8gc6PpCI=
-github.com/expr-lang/expr v1.16.9/go.mod h1:8/vRC7+7HBzESEqt5kKpYXxrxkr31SaO8r40VO/1IT4=
+github.com/expr-lang/expr v1.17.2 h1:o0A99O/Px+/DTjEnQiodAgOIK9PPxL8DtXhBRKC+Iso=
+github.com/expr-lang/expr v1.17.2/go.mod h1:8/vRC7+7HBzESEqt5kKpYXxrxkr31SaO8r40VO/1IT4=
 github.com/go-chi/chi/v5 v5.2.1 h1:KOIHODQj58PmL80G2Eak4WdvUzjSJSm0vG72crDCqb8=
 github.com/go-chi/chi/v5 v5.2.1/go.mod h1:L2yAIGWB3H+phAw1NxKwWM+7eUH/lU8pOMm5hHcoops=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
