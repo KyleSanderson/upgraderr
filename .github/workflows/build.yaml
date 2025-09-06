@@ -31,12 +31,12 @@ jobs:
       CGO_ENABLED: ${{ matrix.cgo }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -79,12 +79,12 @@ jobs:
       CGO_ENABLED: ${{ matrix.cgo }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -119,7 +119,7 @@ jobs:
     needs: [test, testother]
     steps:
       - name: Download pprof profiles
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: pprof-*
           merge-multiple: true
@@ -129,7 +129,7 @@ jobs:
         run: ls -la profile
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: false
@@ -149,17 +149,17 @@ jobs:
     needs: [goprofilecombine]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Download pprof profile
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: pprof
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -218,12 +218,12 @@ jobs:
     needs: [goprofilecombine]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Download pprof profile
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: pprof
 
@@ -296,7 +296,7 @@ jobs:
     needs: [docker]
     steps:
       - name: Download image digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: /tmp/digests
           pattern: docker-digests-*
