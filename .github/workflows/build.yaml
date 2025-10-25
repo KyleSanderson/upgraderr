@@ -31,12 +31,12 @@ jobs:
       CGO_ENABLED: ${{ matrix.cgo }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -52,7 +52,7 @@ jobs:
         run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname --raw-command ./profile.sh -- ./...
 
       - name: Upload pprof
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: pprof-test-${{ matrix.os }}-${{ matrix.cgo }}
           path: profile
@@ -79,12 +79,12 @@ jobs:
       CGO_ENABLED: ${{ matrix.cgo }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -102,7 +102,7 @@ jobs:
         run: ${{ startsWith(matrix.os, 'windows') && './profile.sh ./...' || 'go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname --raw-command ./profile.sh -- ./...' }}
 
       - name: Upload pprof
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: pprof-test-${{ matrix.os }}-${{ matrix.cgo }}
           path: profile
@@ -119,7 +119,7 @@ jobs:
     needs: [test, testother]
     steps:
       - name: Download pprof profiles
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: pprof-*
           merge-multiple: true
@@ -129,7 +129,7 @@ jobs:
         run: ls -la profile
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: false
@@ -138,7 +138,7 @@ jobs:
         run: go tool pprof -proto profile/*.pprof | tee -a cpu.pprof
 
       - name: Upload pprof
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: pprof
           path: cpu.pprof
@@ -149,17 +149,17 @@ jobs:
     needs: [goprofilecombine]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Download pprof profile
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: pprof
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -185,7 +185,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: autobrr
           path: |
@@ -218,12 +218,12 @@ jobs:
     needs: [goprofilecombine]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Download pprof profile
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: pprof
 
@@ -282,7 +282,7 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload image digest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: docker-digests-${{ steps.digest-prep.outputs.manifest-hash }}
           path: /tmp/digests/*
@@ -296,7 +296,7 @@ jobs:
     needs: [docker]
     steps:
       - name: Download image digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: /tmp/digests
           pattern: docker-digests-*
