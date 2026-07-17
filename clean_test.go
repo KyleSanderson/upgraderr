@@ -45,12 +45,12 @@ func TestDecideBetterResolutionWinsOverSource(t *testing.T) {
 }
 
 func TestDecideBetterSourceWinsOverAudio(t *testing.T) {
-	// Same resolution; better source (BluRay) must beat better audio (WEB-DL).
-	a := mkEntry("Movie.2023.1080p.BluRay.DDP5.1.H.264-GRP", "a")
-	b := mkEntry("Movie.2023.1080p.WEB-DL.TrueHD.Atmos.H.264-GRP", "b")
+	// Same resolution; better source (WEB-DL) must beat better audio (BluRay).
+	a := mkEntry("Movie.2023.1080p.WEB-DL.DDP5.1.H.264-GRP", "a")
+	b := mkEntry("Movie.2023.1080p.BluRay.TrueHD.Atmos.H.264-GRP", "b")
 
 	if got := decideBetter(&a, &b); got == nil || got.t.Hash != "a" {
-		t.Fatalf("expected BluRay (hash a) to win on source, got %v", got)
+		t.Fatalf("expected WEB-DL (hash a) to win on source, got %v", got)
 	}
 }
 
@@ -119,16 +119,29 @@ func TestClassifyNotUpgradeRejectsWorseResolution(t *testing.T) {
 	}
 }
 
-func TestClassifyNotUpgradeRejectsWorseSource(t *testing.T) {
+func TestClassifyNotUpgradeAllowsWEBOverBluRay(t *testing.T) {
+	// WEB-DL is superior to BluRay, so a WEB-DL request over an existing
+	// BluRay is a genuine upgrade (not rejected).
 	req := mkEntry("Movie.2023.1080p.WEB-DL.DDP5.1.H.264-GRP", "req")
 	existing := mkEntry("Movie.2023.1080p.BluRay.DDP5.1.H.264-GRP", "ex")
+
+	code, _ := classifyNotUpgrade(&req, &existing)
+	if code != 0 {
+		t.Fatalf("expected 0 (genuine upgrade: WEB-DL beats BluRay), got %d", code)
+	}
+}
+
+func TestClassifyNotUpgradeRejectsWorseSource(t *testing.T) {
+	// A BluRay request over an existing WEB-DL is rejected (WEB-DL superior).
+	req := mkEntry("Movie.2023.1080p.BluRay.DDP5.1.H.264-GRP", "req")
+	existing := mkEntry("Movie.2023.1080p.WEB-DL.DDP5.1.H.264-GRP", "ex")
 
 	code, parent := classifyNotUpgrade(&req, &existing)
 	if code != 204 { // checkSource is index 3 in the list => 201+3
 		t.Fatalf("expected code 204 (worse source), got %d", code)
 	}
 	if parent.t.Hash != "ex" {
-		t.Fatalf("expected existing BluRay to be parent, got %q", parent.t.Hash)
+		t.Fatalf("expected existing WEB-DL to be parent, got %q", parent.t.Hash)
 	}
 }
 
@@ -144,13 +157,15 @@ func TestClassifyNotUpgradeAllows4KOverBluRay(t *testing.T) {
 	}
 }
 
-func TestClassifyNotUpgradeAllowsBluRayOverWEB(t *testing.T) {
+func TestClassifyNotUpgradeRejectsBluRayOverWEB(t *testing.T) {
+	// BluRay is NOT superior to WEB-DL, so a BluRay request over an existing
+	// WEB-DL is rejected (WEB-DL wins on source).
 	req := mkEntry("Movie.2023.1080p.BluRay.DDP5.1.H.264-GRP", "req")
 	existing := mkEntry("Movie.2023.1080p.WEB-DL.DDP5.1.H.264-GRP", "ex")
 
 	code, _ := classifyNotUpgrade(&req, &existing)
-	if code != 0 {
-		t.Fatalf("expected 0 (genuine upgrade: BluRay beats WEB-DL), got %d", code)
+	if code != 204 {
+		t.Fatalf("expected 204 (WEB-DL superior to BluRay), got %d", code)
 	}
 }
 

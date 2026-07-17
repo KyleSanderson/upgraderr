@@ -1069,9 +1069,9 @@ func checkSource(requestrls, child *Entry) *Entry {
 	}
 
 	sm := map[string]int{
-		"UHD.BluRay": 92,
-		"BluRay":     91,
 		"WEB-DL":     90,
+		"UHD.BluRay": 89,
+		"BluRay":     88,
 		"WEB":        87,
 		"WEBRiP":     86,
 		"BDRiP":      85,
