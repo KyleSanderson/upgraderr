@@ -926,7 +926,6 @@ func checkExtension(requestrls, child *Entry) *Entry {
 	sm := map[string]int{
 		"mkv":  90,
 		"mp4":  89,
-		"webp": 88,
 		"ts":   87,
 		"wmv":  86,
 		"xvid": 85,
@@ -996,7 +995,6 @@ func checkReplacement(requestrls, child *Entry) *Entry {
 		"COMPLETE":   1,
 		"REMUX":      2,
 		"FS":         3,
-		"EXTENDED":   4,
 		"REMASTERED": 5,
 		"PROPER":     6,
 		"REPACK":     7,
@@ -1020,46 +1018,70 @@ func checkReplacement(requestrls, child *Entry) *Entry {
 }
 
 func checkAudio(requestrls, child *Entry) *Entry {
+	// Base codec scores. Atmos is handled additively below because rls emits
+	// it both as a standalone token ("Atmos") and fused into the codec
+	// ("TrueHD Atmos", "DDP Atmos", "DD Atmos"), so a simple lookup would
+	// otherwise treat TrueHD Atmos as equal to plain TrueHD.
 	sm := map[string]int{
-		"FLAC":         94,
-		"LPCM":         93,
-		"DTS-X":        92,
-		"DTS-HD.HRA":   91,
-		"DDPA":         90,
-		"TrueHD":       89,
-		"TrueHD Atmos": 95,
-		"DDP Atmos":    91,
-		"DD Atmos":     82,
-		"DTS-HD.MA":    88,
-		"DTS-MA":       87,
-		"DTS-HD.HR":    86,
-		"Atmos":        85,
-		"DTS-HD":       84,
-		"DDP":          83,
-		"DTS":          82,
-		"DD":           81,
-		"OPUS":         80,
-		"AAC":          79,
-		"DUAL.AUDIO":   70,
+		"FLAC":       100,
+		"LPCM":       99,
+		"DTS-X":      97,
+		"TrueHD":     94,
+		"DTS-HD.HRA": 93,
+		"DDPA":       92,
+		"DTS-HD.MA":  91,
+		"DTS-MA":     90,
+		"DTS-HD.HR":  89,
+		"Atmos":      88,
+		"DTS-HD":     86,
+		"DDP":        84,
+		"DTS":        82,
+		"DD":         80,
+		"OPUS":       78,
+		"AAC":        76,
+		"MP3":        72,
+		"DUAL.AUDIO": 70,
 	}
 
+	const atmosBonus = 1
+
 	return compareResults(requestrls, child, func(e *rls.Release) int {
-		i := 0
+		// Base codec score from non-Atmos tokens only. rls emits Atmos both
+		// fused ("TrueHD Atmos") and split ("TrueHD", "Atmos"); in both cases
+		// we score the underlying codec and add a small Atmos bonus, so Atmos
+		// never overwrites or leapfrogs the base codec.
+		base := 0
+		hasCodec := false
+		hasAtmos := false
 		for _, v := range e.Audio {
-			if i < sm[v] {
-				i = sm[v]
+			if v == "Atmos" || strings.HasSuffix(v, " Atmos") {
+				hasAtmos = true
+				continue
+			}
+
+			if s, ok := sm[v]; ok && base < s {
+				base = s
+				hasCodec = true
 			}
 		}
 
-		if i == 0 {
+		// A standalone Atmos token (no other codec) scores on its own and
+		// does not receive the bonus.
+		if !hasCodec && hasAtmos {
+			base = sm["Atmos"]
+		} else if hasAtmos && hasCodec {
+			base += atmosBonus
+		}
+
+		if base == 0 {
 			if len(e.Audio) != 0 {
 				fmt.Printf("UNKNOWNAUDIO: %q\n", e.Audio)
 			}
 
-			i = sm["DUAL.AUDIO"]
+			base = sm["DUAL.AUDIO"]
 		}
 
-		return i
+		return base
 	})
 }
 
@@ -1132,8 +1154,17 @@ func checkHDR(requestrls, child *Entry) *Entry {
 	}
 
 	return compareResults(requestrls, child, func(e *rls.Release) int {
+		// DoVi and DV are the same format; normalize so they score
+		// identically.
+		hdr := e.HDR
+		for idx, v := range hdr {
+			if v == "DoVi" {
+				hdr[idx] = "DV"
+			}
+		}
+
 		i := 0
-		for _, v := range e.HDR {
+		for _, v := range hdr {
 			if i < sm[v] {
 				i = sm[v]
 			}
