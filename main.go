@@ -383,20 +383,10 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		if res := checkResolution(&requestrls, &child); res != nil && res.t != requestrls.t {
-			if src := checkSource(&requestrls, &child); src == nil || src.t != requestrls.t {
-				parent = *res
-				code = 201
-				break
-			}
-		}
-
-		for i, f := range []func(*Entry, *Entry) *Entry{checkHDR, checkChannels, checkSource, checkAudio, checkExtension, checkLanguage, checkReplacement} {
-			if res := f(&requestrls, &child); res != nil && res.t != requestrls.t {
-				parent = *res
-				code = 202 + i
-				break
-			}
+		if c, p := classifyNotUpgrade(&requestrls, &child); c != 0 {
+			parent = p
+			code = c
+			break
 		}
 	}
 
@@ -407,6 +397,101 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 	} else {
 		http.Error(w, fmt.Sprintf("Upgrade submission: %q\n", req.Name), 200)
 	}
+}
+
+// cleanTarget groups the torrents that share a single parsed release title.
+type cleanTarget struct {
+	rls  *rls.Release
+	best Entry // the highest-quality torrent for this release
+}
+
+// collectCleanTargets groups torrents by their parsed release title and, for
+// each group, records the single best torrent (using the fixed quality
+// priority order). Torrents whose title fails to parse are grouped under a
+// nil release so they are never treated as the best and are left alone.
+func collectCleanTargets(v []qbittorrent.Torrent) []cleanTarget {
+	byTitle := make(map[string]*cleanTarget)
+	order := make([]string, 0, len(v))
+
+	for _, t := range v {
+		key := getFormattedTitle(t.Name)
+		ct, ok := byTitle[key]
+		if !ok {
+			ct = &cleanTarget{rls: CacheTitle(t.Name)}
+			byTitle[key] = ct
+			order = append(order, key)
+		}
+
+		cur := Entry{t: t, r: CacheTitle(t.Name)}
+		if ct.rls == nil {
+			// Unparseable title: keep the first torrent as a placeholder but
+			// never let it win a quality comparison.
+			ct.best = cur
+			continue
+		}
+
+		if ct.best.t.Hash == "" {
+			ct.best = cur
+			continue
+		}
+
+		if better := decideBetter(&ct.best, &cur); better != nil {
+			ct.best = *better
+		}
+	}
+
+	targets := make([]cleanTarget, 0, len(order))
+	for _, k := range order {
+		targets = append(targets, *byTitle[k])
+	}
+
+	return targets
+}
+
+// selectBest returns the single highest-quality torrent across all targets, or
+// nil if there are no parseable releases.
+func selectBest(targets []cleanTarget) *Entry {
+	var best *Entry
+	for i := range targets {
+		if targets[i].rls == nil {
+			continue
+		}
+
+		if best == nil {
+			b := targets[i].best
+			best = &b
+			continue
+		}
+
+		if better := decideBetter(best, &targets[i].best); better != nil {
+			best = better
+		}
+	}
+
+	return best
+}
+
+// isInferior reports whether child is strictly worse than the best release. A
+// torrent is only considered inferior when its release differs from the best
+// release AND it loses the quality comparison against the global best torrent.
+// The best release (and any duplicate of it) is never inferior, so the
+// highest-quality torrent is always preserved.
+func isInferior(child *qbittorrent.Torrent, best *Entry) bool {
+	if best == nil {
+		return false
+	}
+
+	childrls := CacheTitle(child.Name)
+
+	if rls.Compare(*childrls, *best.r) == 0 {
+		return false
+	}
+
+	if better := decideBetter(best, &Entry{t: *child, r: childrls}); better != nil && better.t.Hash == best.t.Hash {
+		return true
+	}
+
+	return false
 }
 
 func handleClean(w http.ResponseWriter, r *http.Request) {
@@ -434,86 +519,32 @@ func handleClean(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		parent := Entry{r: CacheTitle(v[0].Name), t: v[0]}
-		parentMap := make(map[string]int)
-		for _, t := range v {
-			child := Entry{t: t, r: CacheTitle(t.Name)}
-			if rls.Compare(*parent.r, *child.r) == 0 {
-				parentMap[child.t.Name]++
-				continue
-			}
+		// Collect the set of distinct releases (grouped by parsed title) and
+		// the best torrent for each release.
+		targets := collectCleanTargets(v)
 
-			if res := checkResolution(&parent, &child); res != nil {
-				src := checkSource(&parent, &child)
-				if src == nil {
-					parent = *res
-					parentMap = map[string]int{parent.t.Name: 1}
-					continue
-				} else if src.t.Hash == res.t.Hash {
-					parent = *src
-					parentMap = map[string]int{parent.t.Name: 1}
-					continue
-				}
-			}
+		// The single best torrent across all releases is always preserved.
+		best := selectBest(targets)
 
-			bFailed := false
-			for _, f := range []func(*Entry, *Entry) *Entry{checkHDR, checkChannels, checkSource, checkAudio, checkExtension, checkLanguage, checkReplacement} {
-				if res := f(&parent, &child); res != nil && res.t.Hash != parent.t.Hash {
-					parent = *res
-					parentMap = map[string]int{parent.t.Name: 1}
-					bFailed = true
-					break
-				}
-			}
-
-			if !bFailed {
-				parentMap[child.t.Name]++
-			}
-		}
-
-		if len(parentMap) == 0 {
-			continue
-		}
-
-		var parentName string
-		parentNumber := 0
-		for k, i := range parentMap {
-			if i > parentNumber {
-				parentNumber = i
-				parentName = k
-			}
-		}
-
-		fmt.Printf("Parent: %q\n", parentName)
-
-		parentrls := *CacheTitle(parentName)
 		for _, child := range v {
 			childrls := *CacheTitle(child.Name)
-			if rls.Compare(childrls, parentrls) == 0 {
+			if best != nil && rls.Compare(childrls, *best.r) == 0 {
 				continue
 			}
 
-			bContinue := false
-			childHashes := make([]string, 0, len(v))
-			for _, subChild := range v {
-				if rls.Compare(*CacheTitle(subChild.Name), childrls) != 0 {
-					continue
-				}
-
-				if subChild.CompletionOn < 1 || t-int64(subChild.CompletionOn) < 1209600 {
-					bContinue = true
-					break
-				}
-
-				fmt.Printf("Removing: %q\n", subChild.Name)
-				childHashes = append(childHashes, subChild.Hash)
-			}
-
-			if bContinue {
+			// Only remove a torrent if it is strictly inferior to the best
+			// release. This guarantees the highest-quality torrent is never
+			// deleted, and equal-quality duplicates are left untouched.
+			if !isInferior(&child, best) {
 				continue
 			}
 
-			hashes = append(hashes, childHashes...)
+			if child.CompletionOn < 1 || t-int64(child.CompletionOn) < 1209600 {
+				continue
+			}
+
+			fmt.Printf("Removing: %q\n", child.Name)
+			hashes = append(hashes, child.Hash)
 		}
 	}
 
@@ -990,23 +1021,26 @@ func checkReplacement(requestrls, child *Entry) *Entry {
 
 func checkAudio(requestrls, child *Entry) *Entry {
 	sm := map[string]int{
-		"FLAC":       94,
-		"LPCM":       93,
-		"DTS-X":      92,
-		"DTS-HD.HRA": 91,
-		"DDPA":       90,
-		"TrueHD":     89,
-		"DTS-HD.MA":  88,
-		"DTS-MA":     87,
-		"DTS-HD.HR":  86,
-		"Atmos":      85,
-		"DTS-HD":     84,
-		"DDP":        83,
-		"DTS":        82,
-		"DD":         81,
-		"OPUS":       80,
-		"AAC":        79,
-		"DUAL.AUDIO": 70,
+		"FLAC":         94,
+		"LPCM":         93,
+		"DTS-X":        92,
+		"DTS-HD.HRA":   91,
+		"DDPA":         90,
+		"TrueHD":       89,
+		"TrueHD Atmos": 95,
+		"DDP Atmos":    91,
+		"DD Atmos":     82,
+		"DTS-HD.MA":    88,
+		"DTS-MA":       87,
+		"DTS-HD.HR":    86,
+		"Atmos":        85,
+		"DTS-HD":       84,
+		"DDP":          83,
+		"DTS":          82,
+		"DD":           81,
+		"OPUS":         80,
+		"AAC":          79,
+		"DUAL.AUDIO":   70,
 	}
 
 	return compareResults(requestrls, child, func(e *rls.Release) int {
@@ -1035,9 +1069,9 @@ func checkSource(requestrls, child *Entry) *Entry {
 	}
 
 	sm := map[string]int{
+		"UHD.BluRay": 92,
+		"BluRay":     91,
 		"WEB-DL":     90,
-		"UHD.BluRay": 89,
-		"BluRay":     88,
 		"WEB":        87,
 		"WEBRiP":     86,
 		"BDRiP":      85,
@@ -1143,6 +1177,56 @@ func compareResults(requestrls, child *Entry, f func(*rls.Release) int) *Entry {
 	}
 
 	return nil
+}
+
+// decideBetter returns the higher-quality of two entries using a fixed,
+// deterministic priority order. The order is intentionally stable so that a
+// higher-priority attribute (e.g. resolution) always wins over a
+// lower-priority one (e.g. source), regardless of which is "better" in the
+// other dimension. This prevents a worse source from overriding a better
+// resolution (and vice-versa), and guarantees the best torrent is never
+// discarded in favour of an inferior one.
+func decideBetter(a, b *Entry) *Entry {
+	for _, f := range []func(*Entry, *Entry) *Entry{checkResolution, checkHDR, checkChannels, checkSource, checkAudio, checkExtension, checkLanguage, checkReplacement} {
+		if res := f(a, b); res != nil {
+			return res
+		}
+	}
+
+	return nil
+}
+
+// classifyNotUpgrade determines whether the incoming request is NOT an upgrade
+// over an existing torrent. It returns the informational code (201-208) and the
+// entry that should be treated as the parent (the better of the two), or
+// (0, zero Entry) when the request is a genuine upgrade.
+//
+// The decision uses the fixed priority order (decideBetter) so that a higher
+// priority attribute (e.g. resolution) always wins over a lower one (e.g.
+// source). This fixes the bug where a 4K WEB-DL request was rejected because an
+// existing 1080p BluRay had a "better" source: the request is only classified
+// as "not an upgrade" when the existing torrent is genuinely better overall.
+func classifyNotUpgrade(requestrls, child *Entry) (int, Entry) {
+	better := decideBetter(requestrls, child)
+	if better == nil {
+		// Same release: not an upgrade, but nothing to reject either.
+		return 0, Entry{}
+	}
+
+	if better.t == requestrls.t {
+		// The request is the better release: a genuine upgrade.
+		return 0, Entry{}
+	}
+
+	// The existing torrent is better overall. Report which attribute decided
+	// it, preserving the historical 201-208 codes.
+	for i, f := range []func(*Entry, *Entry) *Entry{checkResolution, checkHDR, checkChannels, checkSource, checkAudio, checkExtension, checkLanguage, checkReplacement} {
+		if res := f(requestrls, child); res != nil && res.t == child.t {
+			return 201 + i, *res
+		}
+	}
+
+	return 0, Entry{}
 }
 
 func Normalize(buf string) string {
