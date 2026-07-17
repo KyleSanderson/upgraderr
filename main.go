@@ -1217,8 +1217,13 @@ func compareResults(requestrls, child *Entry, f func(*rls.Release) int) *Entry {
 // other dimension. This prevents a worse source from overriding a better
 // resolution (and vice-versa), and guarantees the best torrent is never
 // discarded in favour of an inferior one.
+//
+// Priority order: source is the most important attribute, then resolution.
+// This means a higher-resolution release on an inferior source (e.g. a 4K VHS
+// rip) never beats a lower-resolution release on a superior source (e.g. a
+// 1080p WEB-DL).
 func decideBetter(a, b *Entry) *Entry {
-	for _, f := range []func(*Entry, *Entry) *Entry{checkResolution, checkHDR, checkChannels, checkSource, checkAudio, checkExtension, checkLanguage, checkReplacement} {
+	for _, f := range []func(*Entry, *Entry) *Entry{checkSource, checkResolution, checkHDR, checkChannels, checkAudio, checkExtension, checkLanguage, checkReplacement} {
 		if res := f(a, b); res != nil {
 			return res
 		}
@@ -1232,11 +1237,10 @@ func decideBetter(a, b *Entry) *Entry {
 // entry that should be treated as the parent (the better of the two), or
 // (0, zero Entry) when the request is a genuine upgrade.
 //
-// The decision uses the fixed priority order (decideBetter) so that a higher
-// priority attribute (e.g. resolution) always wins over a lower one (e.g.
-// source). This fixes the bug where a 4K WEB-DL request was rejected because an
-// existing 1080p BluRay had a "better" source: the request is only classified
-// as "not an upgrade" when the existing torrent is genuinely better overall.
+// The decision uses the fixed priority order (decideBetter): source is highest
+// priority, then resolution. This means a 4K VHS rip does not beat a 1080p
+// WEB-DL, and the request is only classified as "not an upgrade" when the
+// existing torrent is genuinely better overall.
 func classifyNotUpgrade(requestrls, child *Entry) (int, Entry) {
 	better := decideBetter(requestrls, child)
 	if better == nil {
@@ -1250,8 +1254,9 @@ func classifyNotUpgrade(requestrls, child *Entry) (int, Entry) {
 	}
 
 	// The existing torrent is better overall. Report which attribute decided
-	// it, preserving the historical 201-208 codes.
-	for i, f := range []func(*Entry, *Entry) *Entry{checkResolution, checkHDR, checkChannels, checkSource, checkAudio, checkExtension, checkLanguage, checkReplacement} {
+	// it, preserving the historical 201-208 codes. Source is index 0 (201),
+	// resolution index 1 (202), etc.
+	for i, f := range []func(*Entry, *Entry) *Entry{checkSource, checkResolution, checkHDR, checkChannels, checkAudio, checkExtension, checkLanguage, checkReplacement} {
 		if res := f(requestrls, child); res != nil && res.t == child.t {
 			return 201 + i, *res
 		}

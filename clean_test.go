@@ -29,18 +29,28 @@ func mkTorrent(name, hash string, ageDays int) qbittorrent.Torrent {
 
 // --- decideBetter: fixed priority order -------------------------------------
 
-func TestDecideBetterResolutionWinsOverSource(t *testing.T) {
-	// 4K WEB-DL (better resolution) vs 1080p BluRay (better source).
-	// Resolution is higher priority, so the 4K must win even though its
-	// source is "worse".
+func TestDecideBetterSourceWinsOverResolution(t *testing.T) {
+	// Source is the highest priority. A 4K VHS rip must NOT beat a 1080p
+	// WEB-DL, because VHSRiP is a far inferior source to WEB-DL.
+	a := mkEntry("Movie.2023.2160p.VHSRiP.DDP5.1.H.264-GRP", "a")
+	b := mkEntry("Movie.2023.1080p.WEB-DL.DDP5.1.H.264-GRP", "b")
+
+	if got := decideBetter(&a, &b); got == nil || got.t.Hash != "b" {
+		t.Fatalf("expected 1080p WEB-DL (hash b) to win on source, got %v", got)
+	}
+	if got := decideBetter(&b, &a); got == nil || got.t.Hash != "b" {
+		t.Fatalf("expected 1080p WEB-DL (hash b) to win on source, got %v", got)
+	}
+}
+
+func TestDecideBetterResolutionWithinSameSource(t *testing.T) {
+	// When the source is equal, resolution decides. 4K WEB-DL beats 1080p
+	// WEB-DL.
 	a := mkEntry("Movie.2023.2160p.WEB-DL.DDP5.1.H.264-GRP", "a")
-	b := mkEntry("Movie.2023.1080p.BluRay.DDP5.1.H.264-GRP", "b")
+	b := mkEntry("Movie.2023.1080p.WEB-DL.DDP5.1.H.264-GRP", "b")
 
 	if got := decideBetter(&a, &b); got == nil || got.t.Hash != "a" {
-		t.Fatalf("expected 4K (hash a) to win on resolution, got %v", got)
-	}
-	if got := decideBetter(&b, &a); got == nil || got.t.Hash != "a" {
-		t.Fatalf("expected 4K (hash a) to win on resolution, got %v", got)
+		t.Fatalf("expected 4K WEB-DL (hash a) to win on resolution, got %v", got)
 	}
 }
 
@@ -111,8 +121,8 @@ func TestClassifyNotUpgradeRejectsWorseResolution(t *testing.T) {
 	existing := mkEntry("Movie.2023.2160p.WEB-DL.DDP5.1.H.264-GRP", "ex")
 
 	code, parent := classifyNotUpgrade(&req, &existing)
-	if code != 201 {
-		t.Fatalf("expected code 201 (worse resolution), got %d", code)
+	if code != 202 { // resolution is index 1 => 201+1
+		t.Fatalf("expected code 202 (worse resolution), got %d", code)
 	}
 	if parent.t.Hash != "ex" {
 		t.Fatalf("expected existing 4K to be parent, got %q", parent.t.Hash)
@@ -137,8 +147,8 @@ func TestClassifyNotUpgradeRejectsWorseSource(t *testing.T) {
 	existing := mkEntry("Movie.2023.1080p.WEB-DL.DDP5.1.H.264-GRP", "ex")
 
 	code, parent := classifyNotUpgrade(&req, &existing)
-	if code != 204 { // checkSource is index 3 in the list => 201+3
-		t.Fatalf("expected code 204 (worse source), got %d", code)
+	if code != 201 { // checkSource is index 0 in the list => 201+0
+		t.Fatalf("expected code 201 (worse source), got %d", code)
 	}
 	if parent.t.Hash != "ex" {
 		t.Fatalf("expected existing WEB-DL to be parent, got %q", parent.t.Hash)
@@ -146,14 +156,15 @@ func TestClassifyNotUpgradeRejectsWorseSource(t *testing.T) {
 }
 
 func TestClassifyNotUpgradeAllows4KOverBluRay(t *testing.T) {
-	// Regression: a 4K WEB-DL request must NOT be rejected just because an
-	// existing 1080p BluRay has a "better" source.
+	// A 4K WEB-DL request is a genuine upgrade over an existing 1080p
+	// BluRay: WEB-DL is a superior source to BluRay, so it is accepted
+	// regardless of resolution.
 	req := mkEntry("Movie.2023.2160p.WEB-DL.DDP5.1.H.264-GRP", "req")
 	existing := mkEntry("Movie.2023.1080p.BluRay.DDP5.1.H.264-GRP", "ex")
 
 	code, _ := classifyNotUpgrade(&req, &existing)
 	if code != 0 {
-		t.Fatalf("expected 0 (genuine upgrade: 4K beats 1080p), got %d", code)
+		t.Fatalf("expected 0 (genuine upgrade: WEB-DL beats BluRay), got %d", code)
 	}
 }
 
@@ -164,8 +175,8 @@ func TestClassifyNotUpgradeRejectsBluRayOverWEB(t *testing.T) {
 	existing := mkEntry("Movie.2023.1080p.WEB-DL.DDP5.1.H.264-GRP", "ex")
 
 	code, _ := classifyNotUpgrade(&req, &existing)
-	if code != 204 {
-		t.Fatalf("expected 204 (WEB-DL superior to BluRay), got %d", code)
+	if code != 201 {
+		t.Fatalf("expected 201 (WEB-DL superior to BluRay), got %d", code)
 	}
 }
 
@@ -274,8 +285,8 @@ func simulateClean(v []qbittorrent.Torrent) []string {
 
 func TestCleanKeepsHigherQualityRegression(t *testing.T) {
 	// Regression for "gets rid of higher quality stuff": a 4K WEB-DL and a
-	// 1080p BluRay both exist. The 4K is higher quality, so only the 1080p
-	// should be removed; the 4K must be kept.
+	// 1080p BluRay both exist. WEB-DL is the superior source, so the 4K
+	// WEB-DL is kept and the 1080p BluRay is removed.
 	v := []qbittorrent.Torrent{
 		mkTorrent("Movie.2023.2160p.WEB-DL.DDP5.1.H.264-GRP", "uhd", 30),
 		mkTorrent("Movie.2023.1080p.BluRay.DDP5.1.H.264-GRP", "hd", 30),
@@ -283,10 +294,27 @@ func TestCleanKeepsHigherQualityRegression(t *testing.T) {
 
 	removed := simulateClean(v)
 	if contains(removed, "uhd") {
-		t.Fatalf("BUG: higher-quality 4K (uhd) was marked for removal: %v", removed)
+		t.Fatalf("BUG: higher-quality 4K WEB-DL (uhd) was marked for removal: %v", removed)
 	}
 	if !contains(removed, "hd") {
-		t.Fatalf("expected lower-quality 1080p (hd) to be removed: %v", removed)
+		t.Fatalf("expected lower-source 1080p BluRay (hd) to be removed: %v", removed)
+	}
+}
+
+func TestCleanSourceBeatsResolution(t *testing.T) {
+	// Source is the highest priority: a 4K VHS rip must NOT be kept over a
+	// 1080p WEB-DL. The 4K VHS is removed; the 1080p WEB-DL is kept.
+	v := []qbittorrent.Torrent{
+		mkTorrent("Movie.2023.2160p.VHSRiP.DDP5.1.H.264-GRP", "vhs4k", 30),
+		mkTorrent("Movie.2023.1080p.WEB-DL.DDP5.1.H.264-GRP", "web1080", 30),
+	}
+
+	removed := simulateClean(v)
+	if contains(removed, "web1080") {
+		t.Fatalf("BUG: 1080p WEB-DL (web1080) was marked for removal: %v", removed)
+	}
+	if !contains(removed, "vhs4k") {
+		t.Fatalf("expected inferior-source 4K VHS (vhs4k) to be removed: %v", removed)
 	}
 }
 

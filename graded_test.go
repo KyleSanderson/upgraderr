@@ -188,24 +188,26 @@ func TestGradedReplacement(t *testing.T) {
 
 // --- Aggressive: cross-attribute priority must hold ------------------------
 
-// TestPriorityResolutionDominates verifies resolution beats every lower
-// attribute even when the lower attribute is maximally superior.
-func TestPriorityResolutionDominates(t *testing.T) {
-	highRes := mkEntry("M.2023.2160p.WEB-DL.DoVi.TrueHD.Atmos.7.1.FLAC.mkv.ENGLiSH.REMUX-GRP", "hi")
-	lowRes := mkEntry("M.2023.1080p.HDTV.SDR.DDP1.0.AAC.divx.RUSSiAN-GRP", "lo")
+// TestPrioritySourceDominates verifies source beats every lower attribute
+// even when the lower attribute is maximally superior. A 4K VHS rip must NOT
+// beat a 1080p WEB-DL.
+func TestPrioritySourceDominates(t *testing.T) {
+	goodSrc := mkEntry("M.2023.1080p.WEB-DL.DoVi.TrueHD.Atmos.7.1.FLAC.mkv.ENGLiSH.REMUX-GRP", "good")
+	badSrc := mkEntry("M.2023.2160p.VHSRiP.SDR.DDP1.0.AAC.divx.RUSSiAN-GRP", "bad")
 
-	if got := decideBetter(&lowRes, &highRes); got == nil || got.t.Hash != "hi" {
-		t.Fatalf("4K must beat 1080p regardless of other attributes, got %v", got)
+	if got := decideBetter(&badSrc, &goodSrc); got == nil || got.t.Hash != "good" {
+		t.Fatalf("WEB-DL must beat VHSRiP regardless of resolution/other attrs, got %v", got)
 	}
 }
 
-func TestPriorityHDRDominatesSource(t *testing.T) {
-	// HDR (higher priority) must beat a superior source.
-	hdr := mkEntry("M.2023.1080p.BluRay.HDR.DDP5.1.H.264-GRP", "hdr")
-	sdr := mkEntry("M.2023.1080p.WEB-DL.SDR.DDP5.1.H.264-GRP", "sdr")
+func TestPriorityResolutionWithinSource(t *testing.T) {
+	// When sources are equal, resolution decides: 4K WEB-DL beats 1080p
+	// WEB-DL even though the 1080p has better audio.
+	hiRes := mkEntry("M.2023.2160p.WEB-DL.DDP2.0.H.264-GRP", "hi")
+	loRes := mkEntry("M.2023.1080p.WEB-DL.FLAC.7.1.H.264-GRP", "lo")
 
-	if got := decideBetter(&sdr, &hdr); got == nil || got.t.Hash != "hdr" {
-		t.Fatalf("HDR must beat SDR even when source is worse, got %v", got)
+	if got := decideBetter(&loRes, &hiRes); got == nil || got.t.Hash != "hi" {
+		t.Fatalf("4K WEB-DL must beat 1080p WEB-DL when source is equal, got %v", got)
 	}
 }
 
@@ -287,10 +289,10 @@ func TestClassifyNotUpgradeCodes(t *testing.T) {
 		existing string
 		wantCode int
 	}{
-		{"resolution", "M.2023.1080p.WEB-DL.DDP5.1.H.264-GRP", "M.2023.2160p.WEB-DL.DDP5.1.H.264-GRP", 201},
-		{"hdr", "M.2023.1080p.WEB-DL.SDR.DDP5.1.H.264-GRP", "M.2023.1080p.WEB-DL.HDR.DDP5.1.H.264-GRP", 202},
-		{"channels", "M.2023.1080p.WEB-DL.DDP2.0.H.264-GRP", "M.2023.1080p.WEB-DL.DDP5.1.H.264-GRP", 203},
-		{"source", "M.2023.1080p.BluRay.DDP5.1.H.264-GRP", "M.2023.1080p.WEB-DL.DDP5.1.H.264-GRP", 204},
+		{"source", "M.2023.1080p.BluRay.DDP5.1.H.264-GRP", "M.2023.1080p.WEB-DL.DDP5.1.H.264-GRP", 201},
+		{"resolution", "M.2023.1080p.WEB-DL.DDP5.1.H.264-GRP", "M.2023.2160p.WEB-DL.DDP5.1.H.264-GRP", 202},
+		{"hdr", "M.2023.1080p.WEB-DL.SDR.DDP5.1.H.264-GRP", "M.2023.1080p.WEB-DL.HDR.DDP5.1.H.264-GRP", 203},
+		{"channels", "M.2023.1080p.WEB-DL.DDP2.0.H.264-GRP", "M.2023.1080p.WEB-DL.DDP5.1.H.264-GRP", 204},
 		{"audio", "M.2023.1080p.WEB-DL.AAC.2.0.H.264-GRP", "M.2023.1080p.WEB-DL.FLAC.2.0.H.264-GRP", 205},
 		{"extension", "M.2023.1080p.WEB-DL.DDP5.1.H.264-GRP.divx", "M.2023.1080p.WEB-DL.DDP5.1.H.264-GRP.mkv", 206},
 		{"language", "M.2023.1080p.WEB-DL.DDP5.1.x264.RUSSiAN-GRP", "M.2023.1080p.WEB-DL.DDP5.1.x264.ENGLiSH-GRP", 207},
